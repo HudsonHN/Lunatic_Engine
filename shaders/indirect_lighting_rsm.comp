@@ -1,0 +1,343 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "struct_definitions.glsl"
+#include "helper_functions.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout (set = 0, binding = 0) uniform sampler2D positionColor;
+layout (set = 0, binding = 1) uniform sampler2D normalColor;
+layout (set = 0, binding = 2) uniform sampler2D albedoSpecColor;
+layout (set = 0, binding = 3) uniform sampler2D metalRoughnessColor;
+
+layout(set = 1, binding = 0) uniform SceneDataBuffer{   
+	SceneData sceneData;
+};
+
+layout (set = 2, binding = 0) uniform sampler2D noiseTexture;
+layout(set = 2, binding = 1) uniform CascadeUBO
+{
+	mat4 lightSpaceTransform[NUM_CASCADES];
+};
+layout(set = 2, binding = 2) uniform InverseCascadeUBO
+{
+	mat4 inverseLightSpaceTransform[NUM_CASCADES];
+};
+layout (set = 2, binding = 3) uniform sampler2D dirReflectShadowMaps[];
+
+layout (set = 3, binding = 0, rgba16f) uniform image2D finalImage;
+
+layout(push_constant) uniform PushConstantData
+{
+	DeferredLightingConstants pushConstants;
+};
+
+const float PI = 3.14159265359f;
+const int REFLECT_INDEX_FACTOR = 3;
+
+float radicalInverse_VdC(uint bits) 
+{
+	bits = (bits << 16u) | (bits >> 16u);
+	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+	return float(bits) * 2.3283064365386963e-10; // 1.0 / (1 << 32)
+}
+
+vec2 hammersley(uint i, uint N) 
+{
+	return vec2(float(i) / float(N), radicalInverse_VdC(i));
+}
+
+vec2 sampleDisk(vec2 h)
+{
+	float phi = 2.0 * 3.14159265 * h.x;
+	float r = sqrt(h.y);
+	return vec2(cos(phi), sin(phi)) * r;
+}
+
+//Normal Distribution Function - How many microfacets have their half vector aligned with the surface normal, 
+//								 aka how many reflect light back to the viewer
+float GGXDistribution(float nDotH, float roughness)
+{
+	float alpha2 = roughness * roughness * roughness * roughness;
+	float d = nDotH * nDotH * (alpha2 - 1.0f) + 1.0f;
+	return alpha2 / (PI * d * d);
+}
+
+float GeomSmith(float dp, float roughness)
+{
+	float k = (roughness + 1.0f) * (roughness + 1.0f) / 8.0f;
+	float denom = dp * (1.0f - k) + k;
+	return dp / denom;
+}
+
+// Probability that the microfacet with a given normal vector will be both visible to the light source and the viewer
+// aka approximation of probability of self-shadowing between microfacets, high roughness = higher probability that microfacets will occlude neighbors
+float SchlickGGX(float nDotV, float nDotL, float roughness)
+{
+	return GeomSmith(nDotV, roughness) * GeomSmith(nDotL, roughness);
+}
+
+// Fresnel reflection, occurs when light crosses the boundary between two materials,
+// and part of the light is transmitted through the material, and the rest is reflected at the boundary.
+// Light is transmitted more on surfaces with a normal with a smaller angle from the view direction, and reflected on surfaces
+// with a normal that has a larger angle difference from the view direction
+vec3 SchlickFresnel(float vDotH, vec3 F0) // F0 is how reflective the surface is when viewed from the normal direction, ex. water has a low F0, silver has a high F0
+{
+	return F0 + (1.0f - F0) * pow(clamp(1.0f - vDotH, 0.0f, 1.0f), 5);
+}
+
+vec3 CalcPBR(vec3 normal, vec3 viewDir, vec3 halfDir, vec3 lightDir, vec3 lightIntensity, vec3 fLambert, vec3 F0, float roughness, vec3 reflectionColor)
+{
+	float nDotH = max(dot(normal, halfDir), 0.0f);
+	float vDotH = max(dot(viewDir, halfDir), 0.0f);
+	float nDotL = max(dot(normal, lightDir), 0.0f);
+	float nDotV = max(dot(normal, viewDir), 0.0f);
+
+	vec3 fresnel = SchlickFresnel(vDotH, F0);
+	vec3 kS = fresnel; // reflection index
+	vec3 kD = 1.0f - kS; // refraction index
+
+	vec3 finalReflection = reflectionColor;
+	
+	// D * F * G
+	vec3 specBRDFNom = GGXDistribution(nDotH, roughness) * fresnel * SchlickGGX(nDotV, nDotL, roughness);
+	// 4 * nDotL * nDotV
+	float specBRDFDenom = 4.0f * nDotL * nDotV + 0.0001f;
+	vec3 specBRDF = specBRDFNom / specBRDFDenom;
+
+	vec3 diffuseBRDF = kD * fLambert / PI;
+	return (diffuseBRDF + specBRDF + finalReflection) * lightIntensity * nDotL;
+}
+
+const vec2 cascadePlanes[4] = {
+	vec2(0.1f, 20.0f),
+	vec2(10.0f, 40.0f),
+	vec2(22.5f, 100.0f),
+	vec2(92.5f, 400.0f),
+};
+const uint cascadeResolutions[4] = { 4096, 4096, 4096, 4096 };
+
+int FindCascadeIndex(vec3 viewPos)
+{
+	float depthValue = -viewPos.z;
+	
+	int layer = -1;
+	for (int i = 0; i < NUM_CASCADES; i++)
+	{
+		if (depthValue < cascadePlanes[i].y) // We're going from closest to farthest cascade, so first cascade that
+		{									// the frag's depth value falls in will be our best cascade
+			layer = i;
+			return i;
+		}
+	}
+	if (layer == -1)
+	{
+		return NUM_CASCADES - 1;
+	}
+		
+}
+
+Light CreateReflectiveLight(int cascadeIndex, vec2 uv)
+{
+	vec3 indirectWorldPos = texture(dirReflectShadowMaps[(cascadeIndex * REFLECT_INDEX_FACTOR)], uv).xyz;
+	vec3 indirectNormal = texture(dirReflectShadowMaps[(cascadeIndex * REFLECT_INDEX_FACTOR) + 1], uv).xyz;
+	vec3 indirectColor = texture(dirReflectShadowMaps[(cascadeIndex * REFLECT_INDEX_FACTOR) + 2], uv).xyz;
+
+	Light light;
+	light.position = indirectWorldPos;
+	light.color = indirectColor;
+	light.direction = indirectNormal;
+	light.intensity = pushConstants.reflectiveIntensity;
+	light.radius = 10000.0f;
+	light.type = 1;
+	return light;
+}
+
+float rand(vec2 n) { 
+	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+}
+
+float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
+
+float noise(vec3 p){
+    vec3 a = floor(p);
+    vec3 d = p - a;
+    d = d * d * (3.0 - 2.0 * d);
+
+    vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
+    vec4 k1 = perm(b.xyxy);
+    vec4 k2 = perm(k1.xyxy + b.zzww);
+
+    vec4 c = k2 + a.zzzz;
+    vec4 k3 = perm(c);
+    vec4 k4 = perm(c + 1.0);
+
+    vec4 o1 = fract(k3 * (1.0 / 41.0));
+    vec4 o2 = fract(k4 * (1.0 / 41.0));
+
+    vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+    vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+
+    return o4.y * d.y + o4.x * (1.0 - d.y);
+}
+
+const float kernel[5] = float[](1.0/16.0, 1.0/4.0, 3.0/8.0, 1.0/4.0, 1.0/16.0);
+
+vec2 rotateUV(vec2 uv, float rotation)
+{
+    float mid = 0.5;
+    return vec2(
+        cos(rotation) * (uv.x - mid) + sin(rotation) * (uv.y - mid) + mid,
+        cos(rotation) * (uv.y - mid) - sin(rotation) * (uv.x - mid) + mid
+    );
+}
+
+vec3 CalculateIndirectLighting(int cascadeIndex, vec3 albedo, vec3 projCoords, vec3 worldPos, vec3 viewDir, vec3 normal, vec3 fLambert, vec3 F0, float roughness, vec3 reflectionColor)
+{
+	vec2 gid = gl_GlobalInvocationID.xy;
+	vec2 inUV = ((vec2(gid) + 0.5) / imageSize(finalImage)) * sceneData.renderScale;
+
+	vec3 finalColor = vec3(0.0f);
+	vec2 texelSize = 1.0f / textureSize(dirReflectShadowMaps[cascadeIndex], 0);
+	vec2 noiseUV = projCoords.xy * 0.125f;
+	int numSamples = pushConstants.numReflectShadowSamples;
+
+	mat4 invViewProj = inverseLightSpaceTransform[cascadeIndex];
+	
+	vec3 vslWorldPos = uvDepthToWorld(projCoords.xy, 0.0f, invViewProj);
+	vec3 shiftedVslWorldPos = uvDepthToWorld(vec2(projCoords.x + pushConstants.sampleRadius, projCoords.y), 0.0f, invViewProj);
+	float rMaxWorld = distance(vslWorldPos, shiftedVslWorldPos);
+	float normalizationFactor = 2.0f * rMaxWorld * rMaxWorld;
+	vec2 noiseVec = texture(noiseTexture, noiseUV).xy;
+
+	float t = noise(worldPos * 1000.0f);
+	mat2 rot = mat2(
+		cos(t), sin(t),
+		-sin(t), cos(t)
+	);
+
+	for (int i = 0; i < numSamples; i++)
+	{
+		vec2 xi = hammersley(i, numSamples) * rot;
+		xi = (rot * (xi - 0.5f)) + 0.5f;
+		float r = xi.x * pushConstants.sampleRadius;
+		float theta = xi.y * 2.0f * PI;
+		vec2 sampleUV = projCoords.xy + vec2(r * cos(theta), r * sin(theta));
+
+		if (any(lessThan(sampleUV, vec2(0.0f))) || any(greaterThanEqual(sampleUV, vec2(1.0f))))
+		{
+			continue;
+		}
+
+		float weight = xi.x * xi.x;
+		
+		Light light = CreateReflectiveLight(cascadeIndex, sampleUV);
+		vec3 lightDir = light.position - worldPos;
+		float distSq = max(dot(lightDir, lightDir), 1e-6);
+		float inverseSq = inversesqrt(distSq);
+		lightDir *= inverseSq;
+
+		float nDotL = max(dot(normal, lightDir), 0.0f);
+		float vplNDotL = max(dot(light.direction, -lightDir), 0.0f);
+
+		vec3 halfDir = normalize(viewDir + lightDir);
+
+		float attenuation = nDotL * vplNDotL / distSq;
+		if (attenuation < 1e-6)
+		{
+			continue;
+		}
+		vec3 lightIntensity = light.color * light.intensity * attenuation;
+		finalColor += CalcPBR(normal, viewDir, halfDir, lightDir, lightIntensity, fLambert, F0, roughness, reflectionColor) * weight;
+		
+	}
+	return finalColor * albedo * normalizationFactor / float(numSamples);
+}
+
+void main() 
+{
+    vec2 gid = gl_GlobalInvocationID.xy;
+	vec2 inUV = ((gid + 0.5) / imageSize(finalImage)) * sceneData.renderScale;
+
+	vec2 size = vec2(imageSize(finalImage)) * sceneData.renderScale;
+
+	if (gid.x >= size.x || gid.y >= size.y)
+	{
+		return;
+	}
+
+    vec4 positionSample = texture(positionColor, inUV * sceneData.renderScale);
+	vec3 worldPos = positionSample.xyz;
+	vec3 normal = texture(normalColor, inUV * sceneData.renderScale).rgb;
+	vec4 albedoSpec = texture(albedoSpecColor, inUV * sceneData.renderScale);
+	vec3 albedo = albedoSpec.rgb;
+	vec4 metalRoughness = texture(metalRoughnessColor, inUV * sceneData.renderScale);
+	float metalness = metalRoughness.b;
+	float roughness = metalRoughness.g;
+
+	vec3 viewDir = normalize(sceneData.cameraPos - worldPos);
+
+	vec3 reflectedDir = reflect(-viewDir, normal);
+	vec3 reflectionColor = vec3(0.0f);//texture(cubeMap, reflectedDir).rgb * metalness * (1.0f - roughness);
+
+	vec3 finalColor = vec3(0.0f);
+
+	vec3 F0 = vec3(0.04); // Use this default value for dielectrics, base reflectivity
+	F0 = mix(F0, albedo, metalness);
+
+	vec3 fLambert = albedo;
+	fLambert = mix(fLambert, vec3(0.0f), metalness);
+
+	vec3 sunDir = -normalize(sceneData.sunlightDirection).xyz;
+	vec3 sunRadiance = sceneData.sunlightColor.xyz * sceneData.sunlightColor.w;
+	vec3 sunHalfDir = normalize(viewDir + sunDir);
+
+	
+	float dirShadow = 0.0f;
+	float indirectLight = 0.0f;
+	if (pushConstants.bDrawShadowMaps == 1)
+	{
+		vec3 viewPos = (sceneData.view * vec4(worldPos, 1.0f)).xyz;
+		int cascadeIndex = FindCascadeIndex(viewPos);
+		vec2 texelSize = textureSize(dirReflectShadowMaps[cascadeIndex], 0);
+		vec4 lightSpacePos = lightSpaceTransform[cascadeIndex] * vec4(worldPos, 1.0f);
+		vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+		projCoords.xy = projCoords.xy * 0.5f + 0.5f;
+		projCoords.xy += sceneData.jitterOffset / texelSize;
+
+		if (pushConstants.bDrawReflectiveShadowMaps == 1)
+		{
+			vec3 indirectColor = CalculateIndirectLighting(cascadeIndex, albedo, projCoords, worldPos, viewDir, normal, fLambert, F0, roughness, reflectionColor);
+			if (cascadeIndex < NUM_CASCADES - 1)
+			{
+				int nextCascadeIndex = cascadeIndex + 1;
+				float fadeStart = cascadePlanes[nextCascadeIndex].x;
+				float fadeEnd = cascadePlanes[cascadeIndex].y;
+
+				float depth = -viewPos.z;
+				if (depth > fadeStart && depth <= fadeEnd)
+				{
+					vec4 nextLightSpacePos = lightSpaceTransform[nextCascadeIndex] * vec4(worldPos, 1.0f);
+					vec3 nextProjCoords = nextLightSpacePos.xyz / nextLightSpacePos.w;
+					nextProjCoords.xy = nextProjCoords.xy * 0.5f + 0.5f;
+					vec3 fartherColor = CalculateIndirectLighting(nextCascadeIndex, albedo, nextProjCoords, worldPos, viewDir, normal, fLambert, F0, roughness, reflectionColor);
+
+					float blend = smoothstep(fadeStart, fadeEnd, depth); 
+					indirectColor = mix(indirectColor, fartherColor, blend);
+				}
+			}
+			finalColor += indirectColor;
+		}
+	}
+	imageStore(finalImage, ivec2(gid * sceneData.renderScale), vec4(finalColor, 1.0f));
+    
+}
+

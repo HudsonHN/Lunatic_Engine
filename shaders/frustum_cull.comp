@@ -1,0 +1,181 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+
+#include "struct_definitions.glsl"
+
+layout (local_size_x = 16) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer SurfaceMetaInfoBuffer 
+{
+	SurfaceInfo surfaces[];
+};
+
+layout(std430, set = 0, binding = 1) buffer OpaqueDrawCommands
+{
+	VkDrawIndexedIndirectCommand opaqueDrawCommands[];
+};
+
+layout(std430, set = 0, binding = 2) buffer TransparentDrawCommands
+{
+	VkDrawIndexedIndirectCommand transparentDrawCommands[];
+};
+
+layout(std430, set = 0, binding = 3) buffer EngineStatsBuffer
+{
+	uint triangleCount;
+};
+
+layout(push_constant) uniform PushConstants {
+    mat4 viewProj;
+} pushConstants;
+
+const vec3 corners[8] =
+{
+	{  1,  1,  1 },
+	{  1,  1, -1 },
+	{  1, -1,  1 },
+	{  1, -1, -1 },
+	{ -1,  1,  1 },
+	{ -1,  1, -1 },
+	{ -1, -1,  1 },
+	{ -1, -1, -1 },
+};
+
+bool IsMeshVisible(mat4 worldTransform, Bounds bounds, mat4 viewProj)
+{
+    mat4 meshWorldToClipTransform = viewProj * worldTransform;
+    vec3 minPoint = { 1.5f, 1.5f, 1.5f };
+    vec3 maxPoint = { -1.5f, -1.5f, -1.5f };
+
+    for (int c = 0; c < 8; c++)
+    {
+        // Project each corner into clip space
+        vec4 meshCornerClip = meshWorldToClipTransform * vec4(bounds.origin + (corners[c] * bounds.sphereRadius), 1.0f);
+		/*vec4 meshCornerClip = 
+			vec4
+			(
+				(c & 1) != 0 ? bounds.maxPos.x : bounds.minPos.x,
+				(c & 2) != 0 ? bounds.maxPos.y : bounds.minPos.y,
+				(c & 4) != 0 ? bounds.maxPos.z : bounds.minPos.z,
+				1.0f
+			);
+		meshCornerClip = meshWorldToClipTransform * meshCornerClip;*/
+
+        // Perspective correction into NDC space
+		meshCornerClip.xyz /= meshCornerClip.w;
+
+        minPoint = min(meshCornerClip.xyz, minPoint);
+        maxPoint = max(meshCornerClip.xyz, maxPoint);
+    }
+    // Check the clip space box is within frustum view
+	return !(minPoint.z > 1.0f || maxPoint.z < 0.0f || minPoint.x > 1.0f || maxPoint.x < -1.0f || minPoint.y > 1.0f || maxPoint.y < -1.0f);
+}
+
+/*bool IsBoundsVisible(mat4 worldTransform, Bounds bounds, Plane planes[6])
+{
+	vec3 worldOrigin = vec3(worldTransform * vec4(bounds.origin, 1.0));
+
+	mat3 upper = mat3(worldTransform);
+
+	vec3 x = upper[0] * bounds.extents.x;
+	vec3 y = upper[1] * bounds.extents.y;
+	vec3 z = upper[2] * bounds.extents.z;
+
+	vec3 worldExtents = vec3(length(x), length(y), length(z));
+
+	vec3 min = worldOrigin - worldExtents;
+	vec3 max = worldOrigin + worldExtents;
+
+	for (int i = 0; i < 6; i++)
+	{
+		vec3 pVertex = vec3(
+			(planes[i].normal.x >= 0.0) ? max.x : min.x,
+			(planes[i].normal.y >= 0.0) ? max.y : min.y,
+			(planes[i].normal.z >= 0.0) ? max.z : min.z
+		);
+
+		if (dot(planes[i].normal, pVertex) + planes[i].distance < 0.0)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool IsBoundsSphereVisible(mat4 worldTransform, Bounds bounds, Plane planes[6])
+{
+	vec3 worldOrigin = vec3(worldTransform * vec4(bounds.origin, 1.0));
+
+	mat3 upper = mat3(worldTransform);
+
+	vec3 x = upper[0] * bounds.extents.x;
+	vec3 y = upper[1] * bounds.extents.y;
+	vec3 z = upper[2] * bounds.extents.z;
+
+	vec3 worldExtents = vec3(length(x), length(y), length(z));
+	for (int i = 0; i < 6; i++)
+	{
+		float distance = dot(planes[i].normal, worldOrigin) + planes[i].distance;
+		if (distance < -bounds.sphereRadius)
+		{
+			return false;
+		}
+	}
+	return true;
+}*/
+
+bool IsNDCVisible(mat4 worldTransform, Bounds bounds, mat4 viewProj)
+{
+	mat4 worldToClip = viewProj * worldTransform;
+
+	vec3 minPoint = vec3( 1.5f);
+	vec3 maxPoint = vec3(-1.5f);
+
+	for (int c = 0; c < 8; c++)
+    {	
+		vec4 meshCornerClip = worldToClip * vec4(bounds.origin + (corners[c] * bounds.sphereRadius), 1.0f);
+
+        // Perspective correction into NDC space
+		meshCornerClip.xyz /= meshCornerClip.w;
+
+        minPoint = min(meshCornerClip.xyz, minPoint);
+        maxPoint = max(meshCornerClip.xyz, maxPoint);
+    }
+    // Check the clip space box is within frustum view
+	return !(minPoint.z > 1.0f || maxPoint.z < 0.0f || minPoint.x > 1.0f || maxPoint.x < -1.0f || minPoint.y > 1.0f || maxPoint.y < -1.0f);
+}
+
+void main() 
+{
+    uint gID = gl_GlobalInvocationID.x;
+	SurfaceInfo surface = surfaces[gID];
+	Bounds bounds = surface.bounds;
+	if (!IsMeshVisible(surface.worldTransform, bounds, pushConstants.viewProj))
+	{
+		if (surface.bIsTransparent == 1)
+		{
+			transparentDrawCommands[surface.drawIndex].instanceCount = 0;
+		}
+		else
+		{
+			opaqueDrawCommands[surface.drawIndex].instanceCount = 0;
+		}
+	}
+	else
+	{
+		if (surface.bIsTransparent == 1)
+		{
+			transparentDrawCommands[surface.drawIndex].instanceCount = 1;
+			uint count = transparentDrawCommands[surface.drawIndex].indexCount / 3;
+			atomicAdd(triangleCount, count); 
+		}
+		else
+		{
+			opaqueDrawCommands[surface.drawIndex].instanceCount = 1;
+			uint count = opaqueDrawCommands[surface.drawIndex].indexCount / 3;
+			atomicAdd(triangleCount, count);
+		}
+	}
+}
+
