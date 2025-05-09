@@ -5,6 +5,8 @@ I've implemented features including bindless resources (textures and vertices), 
 
 There is also support to load the engine's DLL into Unreal Engine, and stream scene data from UE directly into the renderer and update it at runtime.
 
+[Demo](https://youtu.be/7D-H_iwujLQ?si=OVbczDKzobxBHonX)
+
 ## Deferred Rendering & Physically-Based Rendering
 To deter the performance impact that overdraw has with numerous lights in the scene, a G-buffer is first created consisting of world positions, normals, albedo, and other material properties of the final fragment. The images from this G-buffer are then evaluated in the lighting pass to ensure that only NUM_OF_LIGHTS * SCREEN_WIDTH * SCREEN_HEIGHT number of light calculations are performed. The Cook-Torrance BRDF model is used for physically based rendering when calculating the light contribution for each fragment.
 
