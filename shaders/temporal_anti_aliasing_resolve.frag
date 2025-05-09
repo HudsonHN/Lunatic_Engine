@@ -86,22 +86,32 @@ vec2 CalcVelocity(mat4 prevViewProj, mat4 currViewProj, vec2 uv, vec2 prevJitter
 	return (projCurrPos - projPrevPos).xy;
 }
 
-void SampleNeighborhoodMinMax(vec2 uv, vec2 texelSize, sampler2D currentColor, out vec3 minCol, out vec3 maxCol)
+const vec3 tentWeights[3] = vec3[3](
+    vec3(0.0625f, 0.125f, 0.0625f),
+    vec3(0.125f,  0.25f,  0.125f),
+    vec3(0.0625f, 0.125f, 0.0625f)
+);
+
+
+// Sample neighbors in a box and weigh their contributions according to the tent weights above, also get the component-wise min/max color values for clamping
+// the previous frame to values of the current frame
+vec3 SampleNeighborhoodMinMax(ivec2 texelUV, ivec2 resolution, vec3 currentColor, sampler2D currentFrame, out vec3 minCol, out vec3 maxCol)
 {
-	minCol = vec3(10000.0f);
-	maxCol = vec3(-10000.0f);
+	minCol = currentColor;
+	maxCol = currentColor;
+	vec3 sampleOutput = vec3(0.0f);
 	for (int x = -1; x <= 1; x++)
 	{
 		for (int y = -1; y <= 1; y++)
 		{
-			vec2 texPos = vec2(x, y) * texelSize;
-			texPos = clamp(texPos, 0.0f, 1.0f);
-
-			vec3 color = texture(currentColor, uv + texPos).rgb;
+			ivec2 finalUV = texelUV + ivec2(x, y);
+			vec3 color = texelFetch(currentFrame, finalUV, 0).rgb;
+			sampleOutput += color * tentWeights[x + 1][y + 1]; // Add +1 to index accessors to change from -1:1 to 0:2
 			minCol = min(minCol, color);
 			maxCol = max(maxCol, color);
 		}
 	}
+	return sampleOutput;
 }
 
 void main() 
@@ -117,19 +127,16 @@ void main()
 	vec3 prevColor = SampleTextureCatmullRom(previousFrame, prevUV * prevSceneData.renderScale).xyz;
 	vec3 currentColor = texture(currentFrame, inUV * currSceneData.renderScale).xyz;
 
-	ivec2 texelUV = ivec2(inUV * currSceneData.renderScale * textureSize(currentFrame, 0));
+	ivec2 resolution = textureSize(currentFrame, 0) - ivec2(1);
+	ivec2 texelUV = ivec2(inUV * currSceneData.renderScale * resolution);
 
-	vec3 nearColor0 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(1, 0)).xyz;
-	vec3 nearColor1 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(0, 1)).xyz;
-	vec3 nearColor2 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(-1, 0)).xyz;
-	vec3 nearColor3 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(0, -1)).xyz;
-
-	vec3 boxMin = min(currentColor, min(nearColor0, min(nearColor1, min(nearColor2, nearColor3))));
-	vec3 boxMax = max(currentColor, max(nearColor0, max(nearColor1, max(nearColor2, nearColor3))));
+	vec3 boxMin = vec3(1.0f);
+	vec3 boxMax = vec3(0.0f);
+	vec3 sampledColor = SampleNeighborhoodMinMax(texelUV, resolution, currentColor, currentFrame, boxMin, boxMax);
 
 	prevColor = clamp(prevColor, boxMin, boxMax);
-	vec3 accumulation = prevColor * 0.9f + currentColor * 0.1f;
+	vec3 accumulation = prevColor * 0.9f + sampledColor * 0.1f;
 
-	outColor = vec4(mix(accumulation, currentColor, velocityDisocclusion), 1.0f);
+	outColor = vec4(mix(accumulation, sampledColor, velocityDisocclusion), 1.0f);
 	outVelocity = currVelocity;
 }
