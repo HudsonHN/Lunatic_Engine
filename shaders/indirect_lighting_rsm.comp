@@ -309,9 +309,10 @@ void main()
 		int cascadeIndex = FindCascadeIndex(viewPos);
 		vec2 texelSize = textureSize(dirReflectShadowMaps[cascadeIndex], 0);
 		vec4 lightSpacePos = lightSpaceTransform[cascadeIndex] * vec4(worldPos, 1.0f);
-		vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
-		projCoords.xy = projCoords.xy * 0.5f + 0.5f;
-		projCoords.xy += sceneData.jitterOffset / texelSize;
+		vec3 projCoords = lightSpacePos.xyz;
+		projCoords.xy += sceneData.bApplyTAA * sceneData.jitterOffset * lightSpacePos.w; // Apply clip space jitter
+		projCoords.xy /= lightSpacePos.w; // Convert to NDC 
+		projCoords.xy = projCoords.xy * 0.5f + 0.5f; // Normalize to [0-1]
 
 		if (pushConstants.bDrawReflectiveShadowMaps == 1)
 		{

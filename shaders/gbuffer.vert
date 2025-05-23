@@ -49,6 +49,9 @@ void main()
 	outTangentW = v.tangent.w;
 	
 	vec4 clipPos = (sceneData.viewProj * worldPosition);
-	clipPos.xy += float(sceneData.bApplyTAA) * sceneData.jitterOffset * clipPos.w;
+	if (sceneData.bApplyTAA == 1)
+	{
+		clipPos.xy += sceneData.jitterOffset * clipPos.w;
+	}
 	gl_Position = clipPos;
 }

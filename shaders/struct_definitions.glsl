@@ -37,6 +37,7 @@ struct SceneData{
 	vec2 jitterOffset;
 	uint bApplyTAA;
 	float renderScale;
+	float deltaTime;
 };
 
 struct Light

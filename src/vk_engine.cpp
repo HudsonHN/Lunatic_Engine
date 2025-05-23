@@ -360,6 +360,7 @@ void LunaticEngine::RunImGui()
         if (_bApplyTAA && ImGui::CollapsingHeader("Anti-Aliasing"))
         {
             ImGui::DragFloat("TAA Jitter Scale", &_jitterScale, 0.1f, 0.0f, 3.0f);
+            ImGui::DragFloat2("TAA DeltaTime Max Weight", (float*)&_deltaTimeMinMaxWeight, 0.1f, 0.1f, 1.0f);
         }
         ImGui::Checkbox("SSAO", &_bApplySSAO);
         if (_bApplySSAO && ImGui::CollapsingHeader("Ambient Occlusion"))
@@ -596,8 +597,8 @@ void LunaticEngine::InitVulkan()
 
     features.pNext = &features12;
     // Vulkan 1.1 features
-    //VkPhysicalDeviceVulkan11Features features11{};
-    //features11.shaderDrawParameters = true;
+    VkPhysicalDeviceVulkan11Features features11{};
+    features11.shaderDrawParameters = true;
 
     // Use vkbootstrap to select a gpu. 
     // We want a GPU that can write to the SDL surface and supports vulkan 1.3 with the correct features
@@ -1473,7 +1474,6 @@ void LunaticEngine::Draw()
 
     // Increase the number of frames drawn
     _frameNumber++;
-    _frameNumber = _frameNumber % FRAME_OVERLAP;
     auto end = std::chrono::system_clock::now();
     float deltaTime = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0f;
     _perfStats.meshDrawTime = deltaTime;
@@ -2398,10 +2398,12 @@ void LunaticEngine::UpdateScene()
     // to opengl and gltf axis
     _sceneData.proj[1][1] *= -1;
     _sceneData.viewProj = _sceneData.proj * _sceneData.view;
+    _sceneData.deltaTime = _deltaTime;
 
+    //float jitterWeight = glm::clamp(1.0f / _deltaTime, _deltaTimeMinMaxWeight.x, _deltaTimeMinMaxWeight.y);
     _sceneData.jitterOffset = _haltonJitterOffsets[_frameNumber % _jitterCount];
-    _sceneData.jitterOffset.x = ((_sceneData.jitterOffset.x - 0.5f) / _drawExtent.width) * _jitterScale;
-    _sceneData.jitterOffset.y = ((_sceneData.jitterOffset.y - 0.5f) / _drawExtent.height) * _jitterScale;
+    _sceneData.jitterOffset.x = (_sceneData.jitterOffset.x / static_cast<float>(_drawExtent.width)) * _jitterScale;
+    _sceneData.jitterOffset.y = (_sceneData.jitterOffset.y / static_cast<float>(_drawExtent.height)) * _jitterScale;
     _sceneData.bApplyTAA = _bApplyTAA;
     _sceneData.renderScale = _renderScale;
 

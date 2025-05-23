@@ -301,7 +301,7 @@ void RenderGraph::Run(VkCommandBuffer cmd, uint32_t swapchainImageIndex)
 			vkutil::TransitionImage(cmd, GetImage(engine->_indirectLightColor).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 			vkutil::TransitionImage(cmd, GetImage(engine->_indirectLightColor).image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
-		if (engine->_bApplyIndirectAccumulation)
+		if (engine->_bApplyTAA && engine->_bApplyIndirectAccumulation)
 		{
 			vkutil::TransitionImage(cmd, GetImage(engine->_historyIndirectLightColor).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 

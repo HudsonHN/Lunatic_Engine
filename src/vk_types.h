@@ -155,6 +155,7 @@ struct GPUSceneData {
     glm::vec2 jitterOffset;
     uint32_t bApplyTAA;
     float renderScale;
+    float deltaTime;
 };
 
 enum class LightType : uint32_t {

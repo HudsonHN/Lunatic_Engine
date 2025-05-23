@@ -102,7 +102,7 @@ struct DeferredLightingConstants
 class LunaticEngine
 {
 public:
-	FrameData& GetCurrentFrame() { return _frames[_frameNumber]; }
+	FrameData& GetCurrentFrame() { return _frames[_frameNumber % FRAME_OVERLAP]; }
 
 	bool _stopRendering = false;
 
@@ -241,8 +241,9 @@ public:
 	MultiImageHandle _reflectiveShadowMapImages;
 	MultiImageHandle _shadowMapImages;
 
+	glm::vec2 _deltaTimeMinMaxWeight = glm::vec2(0.1f, 1.0f);
 	float _jitterScale = 1.0f;
-	const uint32_t _jitterCount = 8;
+	const uint32_t _jitterCount = 16;
 	std::vector<glm::vec2> _haltonJitterOffsets;
 
 	bool _bApplyTAA = true;

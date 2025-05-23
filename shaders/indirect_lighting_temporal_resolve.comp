@@ -4,6 +4,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 #include "struct_definitions.glsl"
+#include "helper_functions.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -86,6 +87,40 @@ vec2 CalcVelocity(mat4 prevViewProj, mat4 currViewProj, vec2 uv, vec2 prevJitter
 	return (projCurrPos - projPrevPos).xy;
 }
 
+const vec3 tentWeights[3] = vec3[3](
+    vec3(0.0625f, 0.125f, 0.0625f),
+    vec3(0.125f,  0.25f,  0.125f),
+    vec3(0.0625f, 0.125f, 0.0625f)
+);
+
+const float lumaSigma = 24.0f; // Lower value = smoother blending, higher value = more aggressive rejection
+const float rejectionFactor = 8.0f;
+
+// Sample neighbors in a box and weigh their contributions according to the tent weights above and the luma weight between center pixel and neighbors
+// also get the component-wise min/max color values for clamping the previous frame to values of the current frame
+vec3 SampleNeighborhoodMinMax(ivec2 texelUV, ivec2 resolution, vec3 currentColor, sampler2D currentFrame, out vec3 minCol, out vec3 maxCol)
+{
+	minCol = currentColor;
+	maxCol = currentColor;
+	float centerLuma = luma(currentColor);
+	vec3 sampleOutput = vec3(0.0f);
+	for (int x = -1; x <= 1; x++)
+	{
+		for (int y = -1; y <= 1; y++)
+		{
+			ivec2 finalUV = texelUV + ivec2(x, y);
+			vec3 color = texelFetch(currentFrame, finalUV, 0).rgb;
+			float lumaDiff = abs(luma(color) - centerLuma);
+			float lumaWeight = exp(-lumaDiff * lumaSigma); // Exponential luminance falloff, e^x | e^-x = (1 / e^x), so a higher lumaDiff and lumaSigma = smaller contribution
+			float weight = tentWeights[x + 1][y + 1] * lumaWeight; // Add +1 to index accessors to change from -1:1 to 0:2
+			sampleOutput += color * weight; 
+			minCol = min(minCol, color);
+			maxCol = max(maxCol, color);
+		}
+	}
+	return sampleOutput;
+}
+
 void main() 
 {
     vec2 gid = gl_GlobalInvocationID.xy;
@@ -109,20 +144,24 @@ void main()
 	vec3 prevColor = SampleTextureCatmullRom(previousFrame, prevUV * prevSceneData.renderScale).xyz;
 	vec3 currentColor = texture(currentFrame, inUV * currSceneData.renderScale).xyz;
 
+	ivec2 resolution = textureSize(currentFrame, 0) - ivec2(1);
 	ivec2 texelUV = ivec2(inUV * currSceneData.renderScale * textureSize(currentFrame, 0));
 
-	vec3 nearColor0 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(1, 0)).xyz;
-	vec3 nearColor1 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(0, 1)).xyz;
-	vec3 nearColor2 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(-1, 0)).xyz;
-	vec3 nearColor3 = texelFetchOffset(currentFrame, texelUV, 0, ivec2(0, -1)).xyz;
-
-	vec3 boxMin = min(currentColor, min(nearColor0, min(nearColor1, min(nearColor2, nearColor3))));
-	vec3 boxMax = max(currentColor, max(nearColor0, max(nearColor1, max(nearColor2, nearColor3))));
+	vec3 boxMin = vec3(1.0f);
+	vec3 boxMax = vec3(0.0f);
+	vec3 sampledColor = SampleNeighborhoodMinMax(texelUV, resolution, currentColor, currentFrame, boxMin, boxMax);
 
 	prevColor = clamp(prevColor, boxMin, boxMax);
-	vec3 accumulation = prevColor * 0.9f + currentColor * 0.1f;
 
-	vec4 finalColor = vec4(mix(accumulation, currentColor, velocityDisocclusion), 1.0f);
+	float colorDiff = length(sampledColor - prevColor);
+	float rejectionWeight = exp(-colorDiff * rejectionFactor);
+	float previousWeight = mix(rejectionWeight, 0.0f, velocityDisocclusion);
+	float currentWeight = 1.0f - previousWeight;
+
+	vec3 currentFinal = mix(sampledColor, currentColor, 1.0f - rejectionWeight);
+	vec3 accumulation = prevColor * previousWeight + currentFinal * currentWeight;
+
+	vec4 finalColor = vec4(accumulation, 1.0f);
 	imageStore(finalImage, ivec2(gid * currSceneData.renderScale), finalColor);
 }
 

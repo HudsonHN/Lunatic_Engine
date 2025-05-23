@@ -3,6 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "struct_definitions.glsl"
+#include "helper_functions.glsl"
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColor;
@@ -92,21 +93,28 @@ const vec3 tentWeights[3] = vec3[3](
     vec3(0.0625f, 0.125f, 0.0625f)
 );
 
+const float lumaSigma = 8.0f; // Lower value = smoother blending, higher value = more aggressive rejection
 
-// Sample neighbors in a box and weigh their contributions according to the tent weights above, also get the component-wise min/max color values for clamping
-// the previous frame to values of the current frame
+// Sample neighbors in a box and weigh their contributions according to the tent weights above and the luma weight between center pixel and neighbors
+// also get the component-wise min/max color values for clamping the previous frame to values of the current frame
 vec3 SampleNeighborhoodMinMax(ivec2 texelUV, ivec2 resolution, vec3 currentColor, sampler2D currentFrame, out vec3 minCol, out vec3 maxCol)
 {
 	minCol = currentColor;
 	maxCol = currentColor;
+	float centerLuma = luma(currentColor);
 	vec3 sampleOutput = vec3(0.0f);
 	for (int x = -1; x <= 1; x++)
 	{
 		for (int y = -1; y <= 1; y++)
 		{
 			ivec2 finalUV = texelUV + ivec2(x, y);
+			finalUV = clamp(finalUV, ivec2(0), resolution - ivec2(1));
 			vec3 color = texelFetch(currentFrame, finalUV, 0).rgb;
-			sampleOutput += color * tentWeights[x + 1][y + 1]; // Add +1 to index accessors to change from -1:1 to 0:2
+			float lumaDiff = abs(luma(color) - centerLuma);
+			float lumaWeight = exp(-lumaDiff * lumaSigma); // Exponential luminance falloff, e^x | e^-x = (1 / e^x), 
+															// so a higher lumaDiff and lumaSigma = smaller contribution
+			float weight = tentWeights[x + 1][y + 1] * lumaWeight; // Add +1 to index accessors to change from -1:1 to 0:2
+			sampleOutput += color * weight; 
 			minCol = min(minCol, color);
 			maxCol = max(maxCol, color);
 		}
@@ -119,15 +127,17 @@ void main()
 	vec2 prevVelocity = texture(prevVelocityImage, inUV * prevSceneData.renderScale).xy;
 	vec2 currVelocity = CalcVelocity(prevSceneData.viewProj, currSceneData.viewProj, inUV * currSceneData.renderScale, prevSceneData.jitterOffset, currSceneData.jitterOffset);
 
-	float velocityLength = length(prevVelocity  - currVelocity);
+	float velocityLength = length(prevVelocity - currVelocity);
 	float velocityDisocclusion = clamp((velocityLength - 0.001f) * 10.0f, 0.0f, 1.0f);
 
-	vec2 prevUV = clamp(inUV - prevVelocity, vec2(0.0f), vec2(1.0f)); // The true position of the previous pixel 
+	ivec2 texSize = textureSize(previousFrame, 0);
+	vec2 pixelMargin = 1.5f / vec2(texSize); // Use pixel margin to properly clamp UV, compensating for catmull rom sampling
+	vec2 prevUV = clamp(inUV - prevVelocity, pixelMargin, vec2(1.0f) - pixelMargin); // The true position of the previous pixel 
 
 	vec3 prevColor = SampleTextureCatmullRom(previousFrame, prevUV * prevSceneData.renderScale).xyz;
 	vec3 currentColor = texture(currentFrame, inUV * currSceneData.renderScale).xyz;
 
-	ivec2 resolution = textureSize(currentFrame, 0) - ivec2(1);
+	ivec2 resolution = textureSize(currentFrame, 0);
 	ivec2 texelUV = ivec2(inUV * currSceneData.renderScale * resolution);
 
 	vec3 boxMin = vec3(1.0f);
@@ -137,6 +147,8 @@ void main()
 	prevColor = clamp(prevColor, boxMin, boxMax);
 	vec3 accumulation = prevColor * 0.9f + sampledColor * 0.1f;
 
-	outColor = vec4(mix(accumulation, sampledColor, velocityDisocclusion), 1.0f);
+	vec4 finalColor = vec4(mix(accumulation, sampledColor, velocityDisocclusion), 1.0f);
+	outColor = finalColor;
+	//outColor = vec4(mix(prevColor, currentColor, 0.1f), 1.0f);
 	outVelocity = currVelocity;
 }
