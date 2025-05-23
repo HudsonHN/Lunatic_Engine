@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void TonemappingPass::DataSetup(LunaticEngine* engine)
 {
@@ -94,6 +95,8 @@ void TonemappingPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     VkRenderingInfo renderInfo = vkinit::rendering_info(engine->_drawExtent, &colorAttachment, nullptr, nullptr);
 
     glm::vec2 tonemapData = { engine->_cameraExposure, engine->_renderScale };
+
+    GPUDebugScope debugScope(cmd, "Tonemapping Pass");
 
     vkCmdBeginRendering(cmd, &renderInfo);
 

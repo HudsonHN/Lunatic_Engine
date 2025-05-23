@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void LightingPass::DataSetup(LunaticEngine* engine)
 {
@@ -235,6 +236,8 @@ void LightingPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
         shadowsDescriptorSet
     };
 
+    GPUDebugScope scope(cmd, "Opaque Lighting Pass");
+
     vkCmdBeginRendering(cmd, &renderInfo);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
@@ -260,5 +263,6 @@ void LightingPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     vkCmdSetScissor(cmd, 0, 1, &scissor);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRendering(cmd);
+
     ++engine->_perfStats.drawcallCount;
 }

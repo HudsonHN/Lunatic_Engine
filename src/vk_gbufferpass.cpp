@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void GBufferPass::DataSetup(LunaticEngine* engine)
 {
@@ -218,6 +219,8 @@ void GBufferPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     const AllocatedBuffer& indexBuffer = renderGraph->GetBuffer(*indexBufferHandle);
     const AllocatedBuffer& drawCmdBuffer = renderGraph->GetBuffer(*opaqueDrawCommandBufferHandle);
     const AllocatedBuffer& drawCountBuffer = renderGraph->GetBuffer(*opaqueDrawCountBufferHandle);
+
+    GPUDebugScope scope(cmd, "GBuffer Pass");
 
     vkCmdBeginRendering(cmd, &renderInfo);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);

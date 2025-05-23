@@ -52,6 +52,8 @@ add_executable (engine
   vk_taapass.cpp
   vk_tonemappingpass.h
   vk_tonemappingpass.cpp
+  vk_debug.h
+  vk_debug.cpp
 )
 
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)

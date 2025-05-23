@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void SkyboxPass::DataSetup(LunaticEngine* engine)
 {
@@ -106,6 +107,8 @@ void SkyboxPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     {
         .viewProj = engine->_sceneData.viewProj,
     };
+
+    GPUDebugScope scope(cmd, "Skybox Pass");
 
     vkCmdBeginRendering(cmd, &renderInfo);
 

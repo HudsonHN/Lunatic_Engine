@@ -3,7 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
-#include <random>
+#include "vk_debug.h"
 
 void AtrousFilterPass::DataSetup(LunaticEngine* engine)
 {
@@ -118,15 +118,18 @@ void AtrousFilterPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
         atrousFilterDescriptorSet
     };
 
+   
     for (int i = 0; i < engine->_atrousFilterNumSamples; i++)
     {
+        GPUDebugScope scope(cmd, "Atrous Filter Pass");
+
         engine->_atrousFilterConstants.stepWidth = static_cast<float>(1 << i);
 
         vkutil::TransitionImage(cmd, atrousImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(atrousImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         VkRenderingInfo renderInfo = vkinit::rendering_info(engine->_drawExtent, &colorAttachment, nullptr, nullptr);
-
+        
         vkCmdBeginRendering(cmd, &renderInfo);
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);

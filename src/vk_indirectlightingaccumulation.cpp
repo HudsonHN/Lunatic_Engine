@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void IndirectLightingAccumulationCompute::DataSetup(LunaticEngine* engine)
 {
@@ -135,6 +136,7 @@ void IndirectLightingAccumulationCompute::PipelineSetup(LunaticEngine* engine)
 
 void IndirectLightingAccumulationCompute::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 {
+    GPUDebugScope scope(cmd, "Indirect TAA Compute");
     AllocatedBuffer sceneDataBuffer = engine->CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "gpu taa scene data buffer");
     AllocatedBuffer prevSceneDataBuffer = engine->CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "gpu old taa scene data buffer");
 

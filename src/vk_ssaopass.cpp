@@ -3,7 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
-#include <random>
+#include "vk_debug.h"
 
 void SSAOPass::DataSetup(LunaticEngine* engine)
 {
@@ -145,6 +145,8 @@ void SSAOPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     };
 
     engine->_ssaoConstants.screenResolution = { static_cast<float>(engine->_drawExtent.width), static_cast<float>(engine->_drawExtent.height) };
+
+    GPUDebugScope scope(cmd, "SSAO Pass");
 
     vkCmdBeginRendering(cmd, &renderInfo);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);

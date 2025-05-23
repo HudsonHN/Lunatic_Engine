@@ -3,7 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
-#include <random>
+#include "vk_debug.h"
 
 void TAAPass::DataSetup(LunaticEngine* engine)
 {
@@ -209,6 +209,8 @@ void TAAPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
         temporalAADescriptorSet,
         temporalAASceneDataDescriptorSet
     };
+
+    GPUDebugScope scope(cmd, "TAA Pass");
 
     vkCmdBeginRendering(cmd, &renderInfo);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);

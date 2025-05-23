@@ -3,7 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
-#include <random>
+#include "vk_debug.h"
 
 void BlurPass::DataSetup(LunaticEngine* engine)
 {
@@ -117,32 +117,35 @@ void BlurPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
     glm::vec3 resBlur = { engine->_drawExtent.width, engine->_ssaoBlurAmount, engine->_renderScale };
 
-    vkCmdBeginRendering(cmd, &renderInfo);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, horizontalBlurPipeline);
-    vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(glm::vec3), &resBlur);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
+    {
+        GPUDebugScope scope(cmd, "Horizontal Blur Pass");
+        vkCmdBeginRendering(cmd, &renderInfo);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, horizontalBlurPipeline);
+        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(glm::vec3), &resBlur);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
 
-    // Set dynamic viewport and scissor
-    VkViewport viewport = {};
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = static_cast<float>(engine->_drawExtent.width);
-    viewport.height = static_cast<float>(engine->_drawExtent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
+        // Set dynamic viewport and scissor
+        VkViewport viewport = {};
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.width = static_cast<float>(engine->_drawExtent.width);
+        viewport.height = static_cast<float>(engine->_drawExtent.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
 
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
 
-    VkRect2D scissor = {};
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    scissor.extent.width = engine->_drawExtent.width;
-    scissor.extent.height = engine->_drawExtent.height;
+        VkRect2D scissor = {};
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent.width = engine->_drawExtent.width;
+        scissor.extent.height = engine->_drawExtent.height;
 
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
-    vkCmdDraw(cmd, 3, 1, 0, 0);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+        vkCmdDraw(cmd, 3, 1, 0, 0);
 
-    vkCmdEndRendering(cmd);
+        vkCmdEndRendering(cmd);
+    }
 
     ++engine->_perfStats.drawcallCount;
 
@@ -170,17 +173,34 @@ void BlurPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
     ////////////////////////////////////////////////////////////////////
 
-    vkCmdBeginRendering(cmd, &renderInfo);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, verticalBlurPipeline);
-    vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(glm::vec3), &resBlur);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
+    {
+        GPUDebugScope scope(cmd, "Vertical Blur Pass");
+        vkCmdBeginRendering(cmd, &renderInfo);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, verticalBlurPipeline);
+        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(glm::vec3), &resBlur);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
 
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
-    vkCmdDraw(cmd, 3, 1, 0, 0);
+        VkViewport viewport = {};
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.width = static_cast<float>(engine->_drawExtent.width);
+        viewport.height = static_cast<float>(engine->_drawExtent.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
 
-    vkCmdEndRendering(cmd);
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
 
+        VkRect2D scissor = {};
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent.width = engine->_drawExtent.width;
+        scissor.extent.height = engine->_drawExtent.height;
+
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+
+        vkCmdEndRendering(cmd);
+    }
     ++engine->_perfStats.drawcallCount;
 
     vkutil::TransitionImage(cmd, blurredImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

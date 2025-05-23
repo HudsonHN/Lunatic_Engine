@@ -353,6 +353,7 @@ public:
 
 	void InitShadowMapData();
 	void InitReflectiveShadowData();
+
 private:
 	
 	void InitVulkan();

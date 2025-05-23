@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void FrustumCompute::DataSetup(LunaticEngine* engine)
 {
@@ -136,6 +137,7 @@ void FrustumCompute::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
     vkCmdPipelineBarrier2(cmd, &dependencyInfo);
 
+    GPUDebugScope scope(cmd, "Frustum Cull Compute");
     // Bind the background compute pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 

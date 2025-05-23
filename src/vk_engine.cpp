@@ -1,28 +1,29 @@
 ﻿//> includes
 #include "vk_engine.h"
 
-#include <SDL.h>
-#include <SDL_vulkan.h>
-
-#include <vk_initializers.h>
-#include <vk_types.h>
-#include <vk_images.h>
-#include <vk_pipelines.h>
-
 #include "VkBootstrap.h"
 
 #include <chrono>
 #include <thread>
+#include <random>
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
-#include "imgui.h"
-#include "imgui_impl_sdl2.h"
-#include "imgui_impl_vulkan.h"
+#include <SDL.h>
+#include <SDL_vulkan.h>
+
+#include <imgui.h>
+#include <imgui_impl_sdl2.h>
+#include <imgui_impl_vulkan.h>
+
 #include <glm/gtx/transform.hpp>
 
-#include <random>
+#include "vk_initializers.h"
+#include "vk_types.h"
+#include "vk_images.h"
+#include "vk_pipelines.h"
+#include "vk_debug.h"
 
 #define VMA_DEBUG_MEMORY_NAME 0
 #define MIPMAP_SHADOWS 0
@@ -572,6 +573,8 @@ void LunaticEngine::InitVulkan()
     _instance = vkb_inst.instance;
     _debug_messenger = vkb_inst.debug_messenger;
 
+    vkdebug::LoadDebugLabelFunctions(_instance);
+
     SDL_Vulkan_CreateSurface(_window, _instance, &_surface);
 
     // Vulkan 1.3 features
@@ -597,8 +600,8 @@ void LunaticEngine::InitVulkan()
 
     features.pNext = &features12;
     // Vulkan 1.1 features
-    VkPhysicalDeviceVulkan11Features features11{};
-    features11.shaderDrawParameters = true;
+    //VkPhysicalDeviceVulkan11Features features11{};
+    //features11.shaderDrawParameters = true;
 
     // Use vkbootstrap to select a gpu. 
     // We want a GPU that can write to the SDL surface and supports vulkan 1.3 with the correct features

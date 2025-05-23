@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void IndirectLightingRSMCompute::DataSetup(LunaticEngine* engine)
 {
@@ -229,6 +230,8 @@ void IndirectLightingRSMCompute::Execute(LunaticEngine* engine, VkCommandBuffer 
         indirectLightingRSMDescriptorSet,
         indirectLightingRSMComputeDescriptorSet
     };
+
+    GPUDebugScope scope(cmd, "Indirect RSM Compute");
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);

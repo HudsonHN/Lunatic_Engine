@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void TransparentPass::DataSetup(LunaticEngine* engine)
 {
@@ -216,6 +217,8 @@ void TransparentPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     };
     
     AllocatedBuffer& indexBuffer = renderGraph->GetBuffer(*indexBufferHandle);
+
+    GPUDebugScope debugScope(cmd, "Transparent Pass");
 
     vkCmdBeginRendering(cmd, &renderInfo);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);

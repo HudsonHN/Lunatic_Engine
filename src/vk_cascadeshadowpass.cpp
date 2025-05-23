@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void CascadeShadowPass::DataSetup(LunaticEngine* engine)
 {
@@ -112,6 +113,7 @@ void CascadeShadowPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
         engine->_prevCascadeExtentIndex = engine->_cascadeExtentIndex;
     }*/
+
     for (int i = 0; i < NUM_CASCADES; i++)
     {
         AllocatedImage& depthImage = renderGraph->GetImage(*cascadeDepthHandles[i]);
@@ -122,6 +124,8 @@ void CascadeShadowPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
         renderInfo.colorAttachmentCount = 0;
 
         AllocatedBuffer& indexBuffer = renderGraph->GetBuffer(*indexBufferHandle);
+
+        GPUDebugScope scope(cmd, "Directional Light Shadow Pass");
 
         vkCmdBeginRendering(cmd, &renderInfo);
 

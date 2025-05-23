@@ -3,6 +3,7 @@
 #include "vk_pipelines.h"
 #include "vk_initializers.h"
 #include "vk_engine.h"
+#include "vk_debug.h"
 
 void ReflectiveShadowPass::DataSetup(LunaticEngine* engine)
 {
@@ -217,6 +218,8 @@ void ReflectiveShadowPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
         };
 
         AllocatedBuffer& indexBuffer = renderGraph->GetBuffer(*indexBufferHandle);
+
+        GPUDebugScope scope(cmd, "Indirect RSM Pass");
 
         vkCmdBeginRendering(cmd, &renderInfo);
 
