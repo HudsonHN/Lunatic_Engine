@@ -15,6 +15,7 @@ struct GBufferPass : RenderPass
 	ResourceHandle* albedoColorHandle = nullptr;
 	ResourceHandle* metalRoughColorHandle = nullptr;
 	ResourceHandle* depthImageHandle = nullptr;
+	ResourceHandle* velocityImageHandle = nullptr;
 	ResourceHandle* vertexBufferHandle = nullptr;
 	ResourceHandle* indexBufferHandle = nullptr;
 	ResourceHandle* surfaceMetaInfoBufferHandle = nullptr;
@@ -27,4 +28,6 @@ struct GBufferPass : RenderPass
 
 	VkDescriptorSet gBufferDescriptorSet = VK_NULL_HANDLE;
 	VkDescriptorSetLayout gBufferDescriptorSetLayout = VK_NULL_HANDLE;
+	VkDescriptorSet historySceneDataDescriptorSet = VK_NULL_HANDLE;
+	VkDescriptorSetLayout historySceneDataDescriptorSetLayout = VK_NULL_HANDLE;
 };

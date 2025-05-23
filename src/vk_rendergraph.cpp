@@ -279,6 +279,7 @@ void RenderGraph::Run(VkCommandBuffer cmd, uint32_t swapchainImageIndex)
 	vkutil::TransitionImage(cmd, GetImage(engine->_normalColor).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 	vkutil::TransitionImage(cmd, GetImage(engine->_albedoSpecColor).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 	vkutil::TransitionImage(cmd, GetImage(engine->_metalRoughnessColor).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkutil::TransitionImage(cmd, GetImage(engine->_velocityImage).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	gBufferPass->Execute(engine, cmd);
 
@@ -286,6 +287,7 @@ void RenderGraph::Run(VkCommandBuffer cmd, uint32_t swapchainImageIndex)
 	vkutil::TransitionImage(cmd, GetImage(engine->_normalColor).image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 	vkutil::TransitionImage(cmd, GetImage(engine->_albedoSpecColor).image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 	vkutil::TransitionImage(cmd, GetImage(engine->_metalRoughnessColor).image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkutil::TransitionImage(cmd, GetImage(engine->_velocityImage).image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
 
 
 	if (engine->_bDrawDirectionalShadows && engine->_bDrawReflectiveDirectionalShadows)
@@ -346,7 +348,6 @@ void RenderGraph::Run(VkCommandBuffer cmd, uint32_t swapchainImageIndex)
 	{
 		vkutil::TransitionImage(cmd, GetImage(engine->_drawImage).image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		vkutil::TransitionImage(cmd, GetImage(engine->_historyImage).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-		vkutil::TransitionImage(cmd, GetImage(engine->_velocityImage).image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 		taaPass->Execute(engine, cmd);
 
@@ -354,13 +355,8 @@ void RenderGraph::Run(VkCommandBuffer cmd, uint32_t swapchainImageIndex)
 		vkutil::TransitionImage(cmd, GetImage(engine->_drawImage).image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 		vkutil::CopyImageToImage(cmd, GetImage(engine->_historyImage).image, GetImage(engine->_drawImage).image, engine->_drawExtent, engine->_drawExtent);
 
-		vkutil::TransitionImage(cmd, GetImage(engine->_velocityImage).image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-		vkutil::TransitionImage(cmd, GetImage(engine->_prevVelocityImage).image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		vkutil::CopyImageToImage(cmd, GetImage(engine->_velocityImage).image, GetImage(engine->_prevVelocityImage).image, engine->_drawExtent, engine->_drawExtent);
-
 		vkutil::TransitionImage(cmd, GetImage(engine->_drawImage).image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-		vkutil::TransitionImage(cmd, GetImage(engine->_prevVelocityImage).image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
 	skyboxPass->Execute(engine, cmd);
@@ -402,6 +398,12 @@ void RenderGraph::Run(VkCommandBuffer cmd, uint32_t swapchainImageIndex)
 
 		vkutil::CopyImageToImage(cmd, GetImage(engine->_drawImage).image, engine->_swapchainImages[swapchainImageIndex], engine->_drawExtent, engine->_swapchainExtent);
 	}
+
+	vkutil::TransitionImage(cmd, GetImage(engine->_velocityImage).image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	vkutil::TransitionImage(cmd, GetImage(engine->_prevVelocityImage).image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	vkutil::CopyImageToImage(cmd, GetImage(engine->_velocityImage).image, GetImage(engine->_prevVelocityImage).image, engine->_drawExtent, engine->_drawExtent);
+	vkutil::TransitionImage(cmd, GetImage(engine->_prevVelocityImage).image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 	vkutil::TransitionImage(cmd, engine->_swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 }
 

@@ -219,7 +219,7 @@ void ReflectiveShadowPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
         AllocatedBuffer& indexBuffer = renderGraph->GetBuffer(*indexBufferHandle);
 
-        GPUDebugScope scope(cmd, "Indirect RSM Pass");
+        GPUDebugScope scope(cmd, "Directional Reflective Shadow Pass");
 
         vkCmdBeginRendering(cmd, &renderInfo);
 

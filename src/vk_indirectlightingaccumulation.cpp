@@ -11,6 +11,7 @@ void IndirectLightingAccumulationCompute::DataSetup(LunaticEngine* engine)
     indirectLightColorHandle = &engine->_indirectLightColor;
     positionColorHandle = &engine->_positionColor;
     prevVelocityImageHandle = &engine->_prevVelocityImage;
+    currVelocityImageHandle = &engine->_velocityImage;
     historyIndirectLightColorHandle = &engine->_historyIndirectLightColor;
 }
 
@@ -21,9 +22,10 @@ void IndirectLightingAccumulationCompute::DescriptorSetup(LunaticEngine* engine,
     builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
     builder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
     builder.AddBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
-    builder.AddBinding(4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT);
-    builder.AddBinding(5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
+    builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
+    builder.AddBinding(5, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT);
     builder.AddBinding(6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
+    builder.AddBinding(7, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
     indirectLightingAccumulationComputeDescriptorSetLayout = builder.Build(engine->_device);
     deletionQueue.PushFunction([=]()
     {
@@ -78,6 +80,17 @@ void IndirectLightingAccumulationCompute::DescriptorSetup(LunaticEngine* engine,
     {
         DescriptorBindingInfo bindingInfo{};
         bindingInfo.binding = 4;
+        bindingInfo.descriptorSet = indirectLightingAccumulationComputeDescriptorSet;
+        bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindingInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        bindingInfo.imageSampler = engine->_defaultSamplerNearest;
+        bindingInfo.isImage = true;
+
+        currVelocityImageHandle->bindingInfos.push_back(bindingInfo);
+    }
+    {
+        DescriptorBindingInfo bindingInfo{};
+        bindingInfo.binding = 5;
         bindingInfo.descriptorSet = indirectLightingAccumulationComputeDescriptorSet;
         bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         bindingInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -158,8 +171,8 @@ void IndirectLightingAccumulationCompute::Execute(LunaticEngine* engine, VkComma
 
     {
         DescriptorWriter writer;
-        writer.WriteBuffer(5, prevSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-        writer.WriteBuffer(6, sceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.WriteBuffer(6, prevSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.WriteBuffer(7, sceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
         writer.UpdateSet(engine->_device, indirectLightingAccumulationComputeDescriptorSet);
     }
 

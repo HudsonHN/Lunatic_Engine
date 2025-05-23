@@ -7,12 +7,12 @@
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec2 outVelocity;
 
 layout(set = 0, binding = 0) uniform sampler2D previousFrame;
 layout(set = 0, binding = 1) uniform sampler2D currentFrame;
 layout(set = 0, binding = 2) uniform sampler2D currentWorldPosImage;
 layout(set = 0, binding = 3) uniform sampler2D prevVelocityImage;
+layout(set = 0, binding = 4) uniform sampler2D currVelocityImage;
 
 layout(set = 1, binding = 0) uniform PrevSceneData {
 	SceneData prevSceneData;
@@ -73,20 +73,6 @@ vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv)
     return result;
 }
 
-vec2 CalcVelocity(mat4 prevViewProj, mat4 currViewProj, vec2 uv, vec2 prevJitter, vec2 currJitter)
-{
-	vec4 currentWorldPos = texture(currentWorldPosImage, uv);
-	vec4 projPrevPos = prevViewProj * currentWorldPos; // Clip space
-	projPrevPos.xy -= prevJitter * projPrevPos.w; // Unjitter in clip space
-	projPrevPos.xyz /= projPrevPos.w; // Convert to NDC space
-	projPrevPos.xy = (projPrevPos.xy * 0.5f) + 0.5f; // Scale to UV coords [0,1]
-
-	vec4 projCurrPos = currViewProj * currentWorldPos; // Clip space
-	projCurrPos.xyz /= projCurrPos.w; // Convert to NDC space, no need to unjitter
-	projCurrPos.xy = (projCurrPos.xy * 0.5f) + 0.5f; // Scale to UV coords [0,1]
-	return (projCurrPos - projPrevPos).xy;
-}
-
 const vec3 tentWeights[3] = vec3[3](
     vec3(0.0625f, 0.125f, 0.0625f),
     vec3(0.125f,  0.25f,  0.125f),
@@ -124,15 +110,17 @@ vec3 SampleNeighborhoodMinMax(ivec2 texelUV, ivec2 resolution, vec3 currentColor
 
 void main() 
 {
-	vec2 prevVelocity = texture(prevVelocityImage, inUV * prevSceneData.renderScale).xy;
-	vec2 currVelocity = CalcVelocity(prevSceneData.viewProj, currSceneData.viewProj, inUV * currSceneData.renderScale, prevSceneData.jitterOffset, currSceneData.jitterOffset);
+	vec2 currVelocity = texture(currVelocityImage, inUV * currSceneData.renderScale).xy;
+
+	vec2 reprojUV = (inUV * prevSceneData.renderScale) + currVelocity;
+	vec2 prevVelocity = texture(prevVelocityImage, reprojUV).xy;
 
 	float velocityLength = length(prevVelocity - currVelocity);
 	float velocityDisocclusion = clamp((velocityLength - 0.001f) * 10.0f, 0.0f, 1.0f);
 
 	ivec2 texSize = textureSize(previousFrame, 0);
 	vec2 pixelMargin = 1.5f / vec2(texSize); // Use pixel margin to properly clamp UV, compensating for catmull rom sampling
-	vec2 prevUV = clamp(inUV - prevVelocity, pixelMargin, vec2(1.0f) - pixelMargin); // The true position of the previous pixel 
+	vec2 prevUV = clamp(reprojUV, pixelMargin, vec2(1.0f) - pixelMargin); // The true position of the previous pixel 
 
 	vec3 prevColor = SampleTextureCatmullRom(previousFrame, prevUV * prevSceneData.renderScale).xyz;
 	vec3 currentColor = texture(currentFrame, inUV * currSceneData.renderScale).xyz;
@@ -150,5 +138,4 @@ void main()
 	vec4 finalColor = vec4(mix(accumulation, sampledColor, velocityDisocclusion), 1.0f);
 	outColor = finalColor;
 	//outColor = vec4(mix(prevColor, currentColor, 0.1f), 1.0f);
-	outVelocity = currVelocity;
 }

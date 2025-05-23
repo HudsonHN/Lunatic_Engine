@@ -983,6 +983,7 @@ void LunaticEngine::InitGBufferData()
     _normalColor = _renderGraph.CreateImage("GPU_normal deferred", drawImageExtent, VK_FORMAT_R16G16B16A16_SFLOAT, drawImageUsages);
     _albedoSpecColor = _renderGraph.CreateImage("GPU_albedospecular deferred", drawImageExtent, VK_FORMAT_R8G8B8A8_UNORM, drawImageUsages);
     _metalRoughnessColor = _renderGraph.CreateImage("GPU_metalroughness deferred", drawImageExtent, VK_FORMAT_R8G8B8A8_UNORM, drawImageUsages);
+    _velocityImage = _renderGraph.CreateImage("GPU_velocity", drawImageExtent, VK_FORMAT_R16G16_SFLOAT, drawImageUsages | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
 
     _renderGraph.AddDirtyResource(&_positionColor);
     _renderGraph.AddDirtyResource(&_normalColor);
@@ -1166,7 +1167,6 @@ void LunaticEngine::InitTemporalAAData()
         .depth = 1
     };
     _historyImage = _renderGraph.CreateImage("GPU_history TAA", extents, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-    _velocityImage = _renderGraph.CreateImage("GPU_velocity", extents, VK_FORMAT_R16G16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
     _prevVelocityImage = _renderGraph.CreateImage("GPU_previous velocity", extents, VK_FORMAT_R16G16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
     _prevFrameImage = _renderGraph.CreateImage("GPU_previous frame", extents, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 

@@ -21,11 +21,13 @@ void GBufferPass::DataSetup(LunaticEngine* engine)
     albedoColorHandle = &engine->_albedoSpecColor;
     metalRoughColorHandle = &engine->_metalRoughnessColor;
     depthImageHandle = &engine->_depthImage;
+    velocityImageHandle = &engine->_velocityImage;
 
     colorImages.push_back(positionColorHandle);
     colorImages.push_back(normalColorHandle);
     colorImages.push_back(albedoColorHandle);
     colorImages.push_back(metalRoughColorHandle);
+    colorImages.push_back(velocityImageHandle);
     depthImage = depthImageHandle;
 }
 
@@ -50,6 +52,19 @@ void GBufferPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocatorGrow
         vkDestroyDescriptorSetLayout(engine->_device, gBufferDescriptorSetLayout, nullptr);
         });
     gBufferDescriptorSet = descriptorAllocator->Allocate(engine->_device, gBufferDescriptorSetLayout, MAX_TEXTURES);
+
+    {
+        DescriptorLayoutBuilder builder;
+        builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        builder.AddBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        historySceneDataDescriptorSetLayout = builder.Build(engine->_device);
+
+        deletionQueue.PushFunction([=]()
+            {
+                vkDestroyDescriptorSetLayout(engine->_device, historySceneDataDescriptorSetLayout, nullptr);
+            });
+        historySceneDataDescriptorSet = descriptorAllocator->Allocate(engine->_device, historySceneDataDescriptorSetLayout);
+    }
 
     {
         DescriptorBindingInfo bindingInfo{};
@@ -112,7 +127,7 @@ void GBufferPass::PipelineSetup(LunaticEngine* engine)
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts =
     {
         gBufferDescriptorSetLayout,
-        sceneDataDescriptorSetLayout
+        historySceneDataDescriptorSetLayout
     };
 
     VkPipelineLayoutCreateInfo layoutInfo = vkinit::pipeline_layout_create_info();
@@ -165,13 +180,13 @@ void GBufferPass::PipelineSetup(LunaticEngine* engine)
                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
     };
 
-    VkPipelineColorBlendAttachmentState blendAttachments[4] =
+    std::vector<VkPipelineColorBlendAttachmentState> blendAttachments =
     {
-        blendAttachment, blendAttachment, blendAttachment, blendAttachment
+        blendAttachment, blendAttachment, blendAttachment, blendAttachment, blendAttachment
     };
 
     // finally build the pipeline
-    pipeline = pipelineBuilder.build_pipeline(engine->_device, 4, blendAttachments);
+    pipeline = pipelineBuilder.build_pipeline(engine->_device, static_cast<uint32_t>(blendAttachments.size()), blendAttachments.data());
 
     deletionQueue.PushFunction([=]()
     {
@@ -188,6 +203,7 @@ void GBufferPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     AllocatedImage& normalColor = renderGraph->GetImage(*normalColorHandle);
     AllocatedImage& albedoColor = renderGraph->GetImage(*albedoColorHandle);
     AllocatedImage& metalRoughColor = renderGraph->GetImage(*metalRoughColorHandle);
+    AllocatedImage& velocityImage = renderGraph->GetImage(*velocityImageHandle);
 
     VkClearValue clearValue{};
     clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -195,25 +211,53 @@ void GBufferPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     VkRenderingAttachmentInfo normalAttachment = vkinit::attachment_info(normalColor.imageView, &clearValue, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingAttachmentInfo albedoSpecAttachment = vkinit::attachment_info(albedoColor.imageView, &clearValue, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingAttachmentInfo metalRoughAttachment = vkinit::attachment_info(metalRoughColor.imageView, &clearValue, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo velocityImageAttachment = vkinit::attachment_info(velocityImage.imageView, &clearValue, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    VkRenderingAttachmentInfo colorAttachments[] = {
+    std::array<VkRenderingAttachmentInfo, 5> colorAttachments = {
         positionAttachment,
         normalAttachment,
         albedoSpecAttachment,
-        metalRoughAttachment
+        metalRoughAttachment,
+        velocityImageAttachment,
     };
 
     AllocatedImage& depthImage = renderGraph->GetImage(*depthImageHandle);
 
     VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
-    VkRenderingInfo renderInfo = vkinit::rendering_info(engine->_drawExtent, colorAttachments, &depthAttachment, &depthAttachment);
-    renderInfo.colorAttachmentCount = 4;
+    VkRenderingInfo renderInfo = vkinit::rendering_info(engine->_drawExtent, colorAttachments.data(), &depthAttachment, &depthAttachment);
+    renderInfo.colorAttachmentCount = static_cast<uint32_t>(colorAttachments.size());
+
+    AllocatedBuffer prevSceneDataBuffer = engine->CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "gpu old gbuffer scene data buffer");
+    AllocatedBuffer sceneDataBuffer = engine->CreateBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, "gpu gbuffer scene data buffer");
+
+    // Add it to the deletion queue of this frame so it gets deleted once its been used
+    engine->GetCurrentFrame().deletionQueue.PushFunction([=, this]() {
+        engine->DestroyBuffer(sceneDataBuffer);
+        engine->DestroyBuffer(prevSceneDataBuffer);
+        });
+
+    void* prevGpuSceneData = nullptr;
+    vmaMapMemory(engine->_allocator, prevSceneDataBuffer.allocation, &prevGpuSceneData);
+    memcpy(prevGpuSceneData, &engine->_prevSceneData, sizeof(GPUSceneData));
+    vmaUnmapMemory(engine->_allocator, prevSceneDataBuffer.allocation);
+
+    void* gpuSceneData = nullptr;
+    vmaMapMemory(engine->_allocator, sceneDataBuffer.allocation, &gpuSceneData);
+    memcpy(gpuSceneData, &engine->_sceneData, sizeof(GPUSceneData));
+    vmaUnmapMemory(engine->_allocator, sceneDataBuffer.allocation);
+
+    {
+        DescriptorWriter writer;
+        writer.WriteBuffer(0, prevSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.WriteBuffer(1, sceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.UpdateSet(engine->_device, historySceneDataDescriptorSet);
+    }
 
     std::vector<VkDescriptorSet> descriptorSets =
     {
         gBufferDescriptorSet,
-        sceneDataDescriptorSet
+        historySceneDataDescriptorSet
     };
 
     const AllocatedBuffer& indexBuffer = renderGraph->GetBuffer(*indexBufferHandle);

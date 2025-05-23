@@ -12,11 +12,14 @@ layout (location = 3) in vec2 inUV;
 layout (location = 4) in vec3 inTangent;
 layout (location = 5) in flat float inTangentW;
 layout (location = 6) in flat uint materialIndex;
+layout (location = 7) in vec4 inCurrClipPos;
+layout (location = 8) in vec4 inPrevClipPos;
 
 layout (location = 0) out vec4 outPosition;
 layout (location = 1) out vec4 outNormal;
 layout (location = 2) out vec4 outAlbedoSpec;
 layout (location = 3) out vec4 outMetalRough;
+layout (location = 4) out vec2 outVelocity;
 
 layout(std430, set = 0, binding = 2) readonly buffer ImageMetaInfoBuffer
 {   
@@ -25,8 +28,11 @@ layout(std430, set = 0, binding = 2) readonly buffer ImageMetaInfoBuffer
 
 layout(set = 0, binding = 4) uniform sampler2D textures[];
 
-layout(set = 1, binding = 0) uniform SceneDataBuffer{   
-	SceneData sceneData;
+layout(set = 1, binding = 0) uniform PrevSceneDataBuffer{   
+	SceneData prevSceneData;
+};
+layout(set = 1, binding = 1) uniform CurrSceneDataBuffer{   
+	SceneData currSceneData;
 };
 
 const mat4 bayerMatrix = mat4(
@@ -38,6 +44,20 @@ const mat4 bayerMatrix = mat4(
 
 const float PI = 3.14159265359f;
 const float radius = 0.5f;
+
+vec2 CalcVelocity(vec3 worldPos, mat4 prevViewProj, mat4 currViewProj, vec2 uv, vec2 prevJitter, vec2 currJitter)
+{
+	vec4 currentWorldPos = vec4(worldPos, 1.0f);
+	vec4 projPrevPos = prevViewProj * currentWorldPos; // Clip space
+	projPrevPos.xy -= prevJitter * projPrevPos.w; // Unjitter in clip space
+	projPrevPos.xyz /= projPrevPos.w; // Convert to NDC space
+	projPrevPos.xy = (projPrevPos.xy * 0.5f) + 0.5f; // Scale to UV coords [0,1]
+
+	vec4 projCurrPos = currViewProj * currentWorldPos; // Clip space
+	projCurrPos.xyz /= projCurrPos.w; // Convert to NDC space, no need to unjitter
+	projCurrPos.xy = (projCurrPos.xy * 0.5f) + 0.5f; // Scale to UV coords [0,1]
+	return (projCurrPos - projPrevPos).xy;
+}
 
 void main() 
 {
@@ -73,9 +93,14 @@ void main()
 		normal = normalize(TBN * normalMap.rgb);
 	}
 
-	vec3 sunDir = -normalize(sceneData.sunlightDirection).xyz;
 	outPosition = vec4(inWorldPos, 1.0f);
 	outNormal = vec4(normal, 1.0f);
 	outAlbedoSpec = vec4(albedo, 1.0f);
 	outMetalRough = vec4(0.0f, roughness, metalness, 1.0f);
+
+	vec3 currPosNDC = inCurrClipPos.xyz / inCurrClipPos.w;
+	currPosNDC.xy = currPosNDC.xy * 0.5f + 0.5f;
+	vec3 prevPosNDC = inPrevClipPos.xyz / inPrevClipPos.w;
+	prevPosNDC.xy = prevPosNDC.xy * 0.5f + 0.5f;
+	outVelocity = prevPosNDC.xy - currPosNDC.xy;
 }

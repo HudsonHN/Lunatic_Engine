@@ -125,7 +125,7 @@ void CascadeShadowPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
         AllocatedBuffer& indexBuffer = renderGraph->GetBuffer(*indexBufferHandle);
 
-        GPUDebugScope scope(cmd, "Directional Light Shadow Pass");
+        GPUDebugScope scope(cmd, "Directional Shadow Pass");
 
         vkCmdBeginRendering(cmd, &renderInfo);
 

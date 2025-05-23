@@ -13,6 +13,8 @@ layout (location = 3) out vec2 outUV;
 layout (location = 4) out vec3 outTangent;
 layout (location = 5) out flat float outTangentW;
 layout (location = 6) out flat uint outMaterialIndex;
+layout (location = 7) out vec4 outCurrClipPos;
+layout (location = 8) out vec4 outPrevClipPos;
 
 layout(std430, set = 0, binding = 0) readonly buffer SurfaceMetaInfoBuffer 
 {
@@ -24,8 +26,11 @@ layout(std430, set = 0, binding = 1) readonly buffer VertexBuffer
 	Vertex vertices[];
 };
 
-layout(set = 1, binding = 0) uniform SceneDataBuffer{   
-	SceneData sceneData;
+layout(set = 1, binding = 0) uniform PrevSceneDataBuffer{   
+	SceneData prevSceneData;
+};
+layout(set = 1, binding = 1) uniform CurrSceneDataBuffer{   
+	SceneData currSceneData;
 };
 
 void main() 
@@ -48,10 +53,13 @@ void main()
 	outTangent = (surface.worldTransform * vec4(v.tangent.xyz, 0.0f)).xyz;
 	outTangentW = v.tangent.w;
 	
-	vec4 clipPos = (sceneData.viewProj * worldPosition);
-	if (sceneData.bApplyTAA == 1)
+	vec4 clipPos = currSceneData.viewProj * worldPosition;
+	outCurrClipPos = clipPos;
+	outPrevClipPos = prevSceneData.viewProj * worldPosition;
+
+	if (currSceneData.bApplyTAA == 1)
 	{
-		clipPos.xy += sceneData.jitterOffset * clipPos.w;
+		clipPos.xy += currSceneData.jitterOffset * clipPos.w;
 	}
 	gl_Position = clipPos;
 }

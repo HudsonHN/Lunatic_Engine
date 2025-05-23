@@ -12,6 +12,7 @@ struct IndirectLightingAccumulationCompute : RenderPass
 
 	ResourceHandle* positionColorHandle = nullptr;
 	ResourceHandle* prevVelocityImageHandle = nullptr;
+	ResourceHandle* currVelocityImageHandle = nullptr;
 	ResourceHandle* indirectLightColorHandle = nullptr;
 	ResourceHandle* prevIndirectLightColorHandle = nullptr;
 	ResourceHandle* historyIndirectLightColorHandle = nullptr;

@@ -15,7 +15,6 @@ void TAAPass::DataSetup(LunaticEngine* engine)
     positionColorHandle = &engine->_positionColor;
 
     colorImages.push_back(historyImageHandle);
-    colorImages.push_back(velocityImageHandle);
 }
 
 void TAAPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocatorGrowable* descriptorAllocator)
@@ -26,6 +25,7 @@ void TAAPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocatorGrowable
         builder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
         builder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
         builder.AddBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+        builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
         temporalAADescriptorSetLayout = builder.Build(engine->_device);
         deletionQueue.PushFunction([=]()
         {
@@ -89,6 +89,17 @@ void TAAPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocatorGrowable
         bindingInfo.isImage = true;
 
         prevVelocityImageHandle->bindingInfos.push_back(bindingInfo);
+    }
+    {
+        DescriptorBindingInfo bindingInfo{};
+        bindingInfo.binding = 4;
+        bindingInfo.descriptorSet = temporalAADescriptorSet;
+        bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindingInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        bindingInfo.imageSampler = engine->_defaultSamplerNearest;
+        bindingInfo.isImage = true;
+
+        velocityImageHandle->bindingInfos.push_back(bindingInfo);
     }
 }
 
@@ -167,12 +178,10 @@ void TAAPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
     VkClearValue clearVelocityValue = { 0.0f, 0.0f };
     VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(historyImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo velocityAttachment = vkinit::attachment_info(velocityImage.imageView, &clearVelocityValue, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    std::array<VkRenderingAttachmentInfo, 2> colorAttachments =
+    std::array<VkRenderingAttachmentInfo, 1> colorAttachments =
     {
-        colorAttachment,
-        velocityAttachment
+        colorAttachment
     };
 
     VkRenderingInfo renderInfo = vkinit::rendering_info(engine->_drawExtent, colorAttachments.data(), nullptr, nullptr);
