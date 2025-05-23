@@ -7,7 +7,7 @@
 layout(set = 0, binding = 0) uniform sampler2D noiseTexture;
 layout(set = 0, binding = 1) uniform KernelBuffer
 {
-	vec3 kernel[64];
+	vec3 kernel[16];
 };
 layout(set = 0, binding = 2) uniform sampler2D positionTexture;
 layout(set = 0, binding = 3) uniform sampler2D normalTexture;

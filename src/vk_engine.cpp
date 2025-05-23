@@ -1189,11 +1189,11 @@ void LunaticEngine::InitAmbientOcclusionData()
     std::uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between [0.0, 1.0]
     std::default_random_engine generator;
 
-    _ssaoConstants.bias = 0.025f;
+    _ssaoConstants.bias = 0.05f;
     _ssaoConstants.radius = 1.0f;
-    _ssaoConstants.kernelSize = 64;
-    _ssaoConstants.power = 4.0f;
-    _ssaoBlurAmount = 3.0f;
+    _ssaoConstants.kernelSize = 16;
+    _ssaoConstants.power = 3.0f;
+    _ssaoBlurAmount = 2.0f;
 
     for (uint32_t i = 0; i < _ssaoConstants.kernelSize; ++i)
     {

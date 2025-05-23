@@ -20,6 +20,10 @@ GPUDebugScope::GPUDebugScope(VkCommandBuffer cmd, const char* label)
     VkDebugUtilsLabelEXT labelInfo{};
     labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
     labelInfo.pLabelName = label;
+    labelInfo.color[0] = 0.25f;
+    labelInfo.color[1] = 0.6f;
+    labelInfo.color[2] = 1.0f;
+    labelInfo.color[3] = 1.0f;
     vkdebug::vkCmdBeginDebugUtilsLabelEXT(cmd, &labelInfo);
 }
 
