@@ -38,6 +38,7 @@ struct SceneData{
 	uint bApplyTAA;
 	float renderScale;
 	float deltaTime;
+	uint frameIndex;
 };
 
 struct Light

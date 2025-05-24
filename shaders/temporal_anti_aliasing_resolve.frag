@@ -108,11 +108,17 @@ vec3 SampleNeighborhoodMinMax(ivec2 texelUV, ivec2 resolution, vec3 currentColor
 	return sampleOutput;
 }
 
+vec4 AdjustHDRColor(vec3 color)
+{
+	float lumaWeight = 1.0f / (1.0f + luma(color));
+	return vec4(color, 1.0f) * lumaWeight;
+}
+
 void main() 
 {
 	vec2 currVelocity = texture(currVelocityImage, inUV * currSceneData.renderScale).xy;
 
-	vec2 reprojUV = (inUV * prevSceneData.renderScale) + currVelocity;
+	vec2 reprojUV = (inUV + currVelocity) * currSceneData.renderScale;
 	vec2 prevVelocity = texture(prevVelocityImage, reprojUV).xy;
 
 	float velocityLength = length(prevVelocity - currVelocity);

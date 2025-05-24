@@ -2409,6 +2409,7 @@ void LunaticEngine::UpdateScene()
     _sceneData.jitterOffset.y = (_sceneData.jitterOffset.y / static_cast<float>(_drawExtent.height)) * _jitterScale;
     _sceneData.bApplyTAA = _bApplyTAA;
     _sceneData.renderScale = _renderScale;
+    _sceneData.frameIndex = static_cast<uint32_t>(_frameNumber);
 
     _lightingConstants =
     {

@@ -218,7 +218,7 @@ vec3 CalculateIndirectLighting(int cascadeIndex, vec3 albedo, vec3 projCoords, v
 	float normalizationFactor = 2.0f * rMaxWorld * rMaxWorld;
 	vec2 noiseVec = texture(noiseTexture, noiseUV).xy;
 
-	float t = noise(worldPos * 1000.0f);
+	float t = rand(inUV * 1000.0f + sceneData.frameIndex);
 	mat2 rot = mat2(
 		cos(t), sin(t),
 		-sin(t), cos(t)

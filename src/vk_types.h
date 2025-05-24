@@ -156,6 +156,7 @@ struct GPUSceneData {
     uint32_t bApplyTAA;
     float renderScale;
     float deltaTime;
+    uint32_t frameIndex;
 };
 
 enum class LightType : uint32_t {
