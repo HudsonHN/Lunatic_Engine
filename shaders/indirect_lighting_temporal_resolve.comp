@@ -91,9 +91,9 @@ vec3 SampleNeighborhoodMinMax(ivec2 texelUV, ivec2 resolution, vec3 currentColor
 	maxCol = currentColor;
 	float centerLuma = luma(currentColor);
 	vec3 sampleOutput = vec3(0.0f);
-	for (int x = -1; x <= 1; x++)
+	for (int y = -1; y <= 1; y++)
 	{
-		for (int y = -1; y <= 1; y++)
+		for (int x = -1; x <= 1; x++)
 		{
 			ivec2 finalUV = texelUV + ivec2(x, y);
 			vec3 color = texelFetch(currentFrame, finalUV, 0).rgb;

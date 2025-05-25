@@ -89,9 +89,9 @@ vec3 SampleNeighborhoodMinMax(ivec2 texelUV, ivec2 resolution, vec3 currentColor
 	maxCol = currentColor;
 	float centerLuma = luma(currentColor);
 	vec3 sampleOutput = vec3(0.0f);
-	for (int x = -1; x <= 1; x++)
+	for (int y = -1; y <= 1; y++)
 	{
-		for (int y = -1; y <= 1; y++)
+		for (int x = -1; x <= 1; x++)
 		{
 			ivec2 finalUV = texelUV + ivec2(x, y);
 			finalUV = clamp(finalUV, ivec2(0), resolution - ivec2(1));
@@ -114,8 +114,88 @@ vec4 AdjustHDRColor(vec3 color)
 	return vec4(color, 1.0f) * lumaWeight;
 }
 
+vec2 GetDilatedUVDepth(vec2 inUV, sampler2D depthImage)
+{
+	vec2 closestUV = inUV;
+	float centerDepth = texture(depthImage, inUV).r;
+	float minDepthDiff = 100.0f;
+	vec2 texRes = textureSize(depthImage, 0);
+	for (int y = -1; y <= 1; y++)
+	{
+		for (int x = -1; x <= 1; x++)
+		{
+			vec2 offsetUV = clamp(inUV + (vec2(x, y) / texRes), vec2(0.0f), vec2(1.0f));
+			
+			float currDepth = texture(depthImage, offsetUV).r;
+			float currDepthDelta = abs(centerDepth - currDepth);
+			
+			float exceedDepthThreshold = float(currDepthDelta < minDepthDiff);
+
+			minDepthDiff = (exceedDepthThreshold * currDepthDelta) + ((1.0f - exceedDepthThreshold) * minDepthDiff);
+			closestUV = (exceedDepthThreshold * offsetUV) + ((1.0f - exceedDepthThreshold) * closestUV);
+		}
+	}
+	return closestUV;
+}
+
+vec2 GetDilatedUVVelocity(vec2 inUV, sampler2D velocityImage)
+{
+	vec2 closestUV = inUV;
+	float maxMagnitudeSq = 0.0f;
+	vec2 texRes = textureSize(velocityImage, 0);
+	for (int y = -1; y <= 1; y++)
+	{
+		for (int x = -1; x <= 1; x++)
+		{
+			vec2 offsetUV = clamp(inUV + (vec2(x, y) / texRes), vec2(0.0f), vec2(1.0f));
+			
+			vec2 currVelocity = texture(velocityImage, offsetUV).xy;
+			float currMagnitudeSq = dot(currVelocity, currVelocity);
+			float exceedMaxMagnitude = float(maxMagnitudeSq < currMagnitudeSq);
+
+			maxMagnitudeSq = (exceedMaxMagnitude * currMagnitudeSq) + ((1.0f - exceedMaxMagnitude) * maxMagnitudeSq);
+			closestUV = (exceedMaxMagnitude * offsetUV) + ((1.0f - exceedMaxMagnitude) * closestUV);
+		}
+	}
+	return closestUV;
+}
+
+const float maxWorldPosDiff = 0.05f;
+
+vec2 GetDilatedUVVelocWorldPos(vec2 inUV, sampler2D velocityImage, sampler2D worldPosImage)
+{
+	vec2 closestUV = inUV;
+	float maxMagnitudeSq = 0.0f;
+	vec3 centerWorldPos = texture(worldPosImage, inUV).xyz;
+	vec2 texRes = textureSize(velocityImage, 0);
+	for (int y = -1; y <= 1; y++)
+	{
+		for (int x = -1; x <= 1; x++)
+		{
+			vec2 offsetUV = clamp(inUV + (vec2(x, y) / texRes), vec2(0.0f), vec2(1.0f));
+			
+			vec3 currWorldPos = texture(worldPosImage, offsetUV).xyz;
+			float centerNeighborWorldDiff = distance(centerWorldPos, currWorldPos);
+
+			vec2 currVelocity = texture(velocityImage, offsetUV).xy;
+			float currMagnitudeSq = dot(currVelocity, currVelocity);
+
+			float withinWorldDistDiff = float(centerNeighborWorldDiff < maxWorldPosDiff);
+			float exceedMaxMagnitude = float(maxMagnitudeSq < currMagnitudeSq) * withinWorldDistDiff;
+
+			maxMagnitudeSq = (exceedMaxMagnitude * currMagnitudeSq) + ((1.0f - exceedMaxMagnitude) * maxMagnitudeSq);
+			closestUV = (exceedMaxMagnitude * offsetUV) + ((1.0f - exceedMaxMagnitude) * closestUV);
+		}
+	}
+	return closestUV;
+}
+
 void main() 
 {
+	ivec2 resolution = textureSize(currentFrame, 0);
+	ivec2 texelUV = ivec2(inUV * currSceneData.renderScale * resolution);
+
+	//vec2 dilatedUV = GetDilatedUVVelocWorldPos(inUV, currVelocityImage, currentWorldPosImage);
 	vec2 currVelocity = texture(currVelocityImage, inUV * currSceneData.renderScale).xy;
 
 	vec2 reprojUV = (inUV + currVelocity) * currSceneData.renderScale;
@@ -131,8 +211,6 @@ void main()
 	vec3 prevColor = SampleTextureCatmullRom(previousFrame, prevUV * prevSceneData.renderScale).xyz;
 	vec3 currentColor = texture(currentFrame, inUV * currSceneData.renderScale).xyz;
 
-	ivec2 resolution = textureSize(currentFrame, 0);
-	ivec2 texelUV = ivec2(inUV * currSceneData.renderScale * resolution);
 
 	vec3 boxMin = vec3(1.0f);
 	vec3 boxMax = vec3(0.0f);
