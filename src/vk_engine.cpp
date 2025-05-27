@@ -102,7 +102,7 @@ void LunaticEngine::Init()
     InitRenderGraphData();
     InitImgui();
 
-    _ambientScale = 0.1f;
+    _ambientScale = 0.05f;
     _sceneData = {};
     _sceneData.sunlightColor = glm::vec4(1.f);
     _sceneData.sunlightColor.a = 15.0f;
@@ -116,7 +116,6 @@ void LunaticEngine::Init()
         CreateLight(glm::vec3{ 1.0f }, glm::vec3{ 1.0f }, 1.0f, 0.0f, LightType::Point);
 
         LoadMesh(ASSET_PATH"\\Models\\Sponza\\Sponza.gltf", glm::mat4{ 1.0f });
-        LoadMesh(ASSET_PATH"\\Models\\structure.glb", glm::mat4{ 1.0f });
         UploadMeshes();
     }
     
