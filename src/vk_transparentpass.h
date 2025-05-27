@@ -12,7 +12,6 @@ struct TransparentPass : RenderPass
 
 	ResourceHandle* drawImageHandle = nullptr;
 	ResourceHandle* depthImageHandle = nullptr;
-	ResourceHandle* vertexBufferHandle = nullptr;
 	ResourceHandle* indexBufferHandle = nullptr;
 	ResourceHandle* surfaceMetaInfoBufferHandle = nullptr;
 	ResourceHandle* transparentDrawCommandBufferHandle = nullptr;

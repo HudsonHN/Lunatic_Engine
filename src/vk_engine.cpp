@@ -116,6 +116,7 @@ void LunaticEngine::Init()
         CreateLight(glm::vec3{ 1.0f }, glm::vec3{ 1.0f }, 1.0f, 0.0f, LightType::Point);
 
         LoadMesh(ASSET_PATH"\\Models\\Sponza\\Sponza.gltf", glm::mat4{ 1.0f });
+        LoadMesh(ASSET_PATH"\\Models\\structure.glb", glm::mat4{ 1.0f });
         UploadMeshes();
     }
     
@@ -882,10 +883,16 @@ void LunaticEngine::InitBindlessData()
 {
     static constexpr uint32_t thirtyTwoMegabytes = 33554432;
     _vertexBuffer = _renderGraph.CreateBuffer(thirtyTwoMegabytes,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY, "global vertex"
     );
     _renderGraph.AddDirtyResource(&_vertexBuffer);
+
+    VkBufferDeviceAddressInfo vertexAddressInfo{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = _renderGraph.GetBuffer(_vertexBuffer).buffer
+    };
+    _vertexBufferAddress = vkGetBufferDeviceAddress(_device, &vertexAddressInfo);
 
     _indexBuffer = _renderGraph.CreateBuffer(thirtyTwoMegabytes,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -1705,10 +1712,15 @@ void LunaticEngine::UploadMeshes()
     {
         fmt::println("Resizing vertex buffer");
         ResizeBufferGPU(vertexBuffer, vertexBuffer.usedSize, newGlobalVertexBufferSize,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
             VMA_MEMORY_USAGE_GPU_ONLY);
-
+        VkBufferDeviceAddressInfo vertexAddressInfo{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+            .buffer = vertexBuffer.buffer
+        };
         _renderGraph.AddDirtyResource(&_vertexBuffer);
+        _vertexBufferAddress = vkGetBufferDeviceAddress(_device, &vertexAddressInfo);
+
         maxGlobalVertexBufferSize = static_cast<uint32_t>(vertexBuffer.info.size);
     }
     while (newGlobalIndexBufferSize > maxGlobalIndexBufferSize)

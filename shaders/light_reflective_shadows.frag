@@ -17,12 +17,12 @@ layout(location = 0) out vec4 outWorldPos;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outFlux;
 
-layout(std430, set = 0, binding = 2) readonly buffer ImageMetaInfoBuffer
+layout(std430, set = 0, binding = 1) readonly buffer ImageMetaInfoBuffer
 {   
 	ImageMetaInfo imageMetaInfo[];
 };
 
-layout(set = 0, binding = 3) uniform sampler2D textures[];
+layout(set = 0, binding = 2) uniform sampler2D textures[];
 
 layout(set = 1, binding = 0) uniform SceneDataBuffer
 {

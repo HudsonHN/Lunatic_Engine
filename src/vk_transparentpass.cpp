@@ -7,7 +7,6 @@
 
 void TransparentPass::DataSetup(LunaticEngine* engine)
 {
-    vertexBufferHandle = &engine->_vertexBuffer;
     indexBufferHandle = &engine->_indexBuffer;
     surfaceMetaInfoBufferHandle = &engine->_surfaceMetaInfoBuffer;
     transparentDrawCommandBufferHandle = &engine->_transparentDrawCommandBuffer;
@@ -28,14 +27,12 @@ void TransparentPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocator
     {
         DescriptorLayoutBuilder builder;
         builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-        builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-        builder.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-        builder.AddBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
-        builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
-        builder.AddBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, MAX_TEXTURES);
+        builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
+        builder.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
+        builder.AddBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+        builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, MAX_TEXTURES);
 
         VkDescriptorBindingFlags bindlessFlags[] = {
-            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
@@ -85,7 +82,7 @@ void TransparentPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocator
         bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindingInfo.isImage = false;
 
-        vertexBufferHandle->bindingInfos.push_back(bindingInfo);
+        imageMetaInfoBufferHandle->bindingInfos.push_back(bindingInfo);
     }
     {
         DescriptorBindingInfo bindingInfo{};
@@ -94,20 +91,11 @@ void TransparentPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocator
         bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindingInfo.isImage = false;
 
-        imageMetaInfoBufferHandle->bindingInfos.push_back(bindingInfo);
-    }
-    {
-        DescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 3;
-        bindingInfo.descriptorSet = transparentDescriptorSet;
-        bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindingInfo.isImage = false;
-
         lightsBufferHandle->bindingInfos.push_back(bindingInfo);
     }
     {
         DescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 4;
+        bindingInfo.binding = 3;
         bindingInfo.descriptorSet = transparentDescriptorSet;
         bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         bindingInfo.imageSampler = engine->_defaultSamplerLinear;
@@ -118,7 +106,7 @@ void TransparentPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocator
     }
     {
         MultiDescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 5;
+        bindingInfo.binding = 4;
         bindingInfo.descriptorSet = transparentDescriptorSet;
         bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
@@ -163,9 +151,16 @@ void TransparentPass::PipelineSetup(LunaticEngine* engine)
         sceneDataDescriptorSetLayout
     };
 
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(VkDeviceAddress);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
     VkPipelineLayoutCreateInfo layoutInfo = vkinit::pipeline_layout_create_info();
     layoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size());
     layoutInfo.pSetLayouts = layouts.data();
+    layoutInfo.pPushConstantRanges = &pushConstantRange;
+    layoutInfo.pushConstantRangeCount = 1;
 
     VK_CHECK(vkCreatePipelineLayout(engine->_device, &layoutInfo, nullptr, &pipelineLayout));
 
@@ -224,6 +219,7 @@ void TransparentPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdBindIndexBuffer(cmd, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
+    vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VkDeviceAddress), &engine->_vertexBufferAddress);
 
     // Set dynamic viewport and scissor
     VkViewport viewport = {};

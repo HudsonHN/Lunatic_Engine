@@ -12,7 +12,6 @@ struct CascadeShadowPass : RenderPass
 
 	ResourceHandle* cascadeDepthHandles[NUM_CASCADES];
 	ResourceHandle* surfaceMetaInfoBufferHandle = nullptr;
-	ResourceHandle* vertexBufferHandle = nullptr;
 	ResourceHandle* indexBufferHandle = nullptr;
 	ResourceHandle* opaqueDrawCommandBufferHandle = nullptr;
 	ResourceHandle* opaqueDrawCountBufferHandle = nullptr;

@@ -342,6 +342,8 @@ public:
 
 	RenderGraph _renderGraph;
 
+	VkDeviceAddress _vertexBufferAddress;
+
 	float _cameraExposure;
 
 	bool _bIsLinkedToUnreal = false;

@@ -21,7 +21,6 @@ void ReflectiveShadowPass::DataSetup(LunaticEngine* engine)
     depthImage = cascadePositionHandles[0];
 
     surfaceMetaInfoBufferHandle = &engine->_surfaceMetaInfoBuffer;
-    vertexBufferHandle = &engine->_vertexBuffer;
     indexBufferHandle = &engine->_indexBuffer;
     imageMetaInfoBufferHandle = &engine->_imageMetaInfoBuffer;
     opaqueDrawCommandBufferHandle = &engine->_opaqueDrawCommandBuffer;
@@ -33,12 +32,10 @@ void ReflectiveShadowPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllo
 {
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-    builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-    builder.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
-    builder.AddBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, MAX_TEXTURES);
+    builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
+    builder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, MAX_TEXTURES);
 
     VkDescriptorBindingFlags bindlessFlags[] = {
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
         VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
         VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
@@ -67,20 +64,11 @@ void ReflectiveShadowPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllo
         bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindingInfo.isImage = false;
 
-        vertexBufferHandle->bindingInfos.push_back(bindingInfo);
-    }
-    {
-        DescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 2;
-        bindingInfo.descriptorSet = reflectiveShadowsDescriptorSet;
-        bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindingInfo.isImage = false;
-
         imageMetaInfoBufferHandle->bindingInfos.push_back(bindingInfo);
     }
     {
         MultiDescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 3;
+        bindingInfo.binding = 2;
         bindingInfo.descriptorSet = reflectiveShadowsDescriptorSet;
         bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
@@ -92,7 +80,7 @@ void ReflectiveShadowPass::PipelineSetup(LunaticEngine* engine)
 {
     VkPushConstantRange pushConstant{};
     pushConstant.offset = 0;
-    pushConstant.size = sizeof(glm::mat4);
+    pushConstant.size = sizeof(CascadeConstants);
     pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts =
@@ -221,12 +209,18 @@ void ReflectiveShadowPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
         GPUDebugScope scope(cmd, "Directional Reflective Shadow Pass");
 
+        CascadeConstants constants =
+        {
+            .viewProj = engine->_indirLightViewProj[i],
+            .vertexBuffer = engine->_vertexBufferAddress
+        };
+
         vkCmdBeginRendering(cmd, &renderInfo);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         vkCmdBindIndexBuffer(cmd, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
-        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &engine->_indirLightViewProj[i]);
+        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(CascadeConstants), &constants);
 
         // Set dynamic viewport and scissor
         VkViewport viewport = {};

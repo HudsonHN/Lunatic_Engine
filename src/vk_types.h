@@ -111,6 +111,12 @@ struct AtrousFilterConstants
     glm::vec2 texelSize;	// 1.0 / resolution
 };
 
+struct CascadeConstants
+{
+    glm::mat4 viewProj;
+    VkDeviceAddress vertexBuffer;
+};
+
 struct MaterialPipeline {
     VkPipeline pipeline;
     VkPipelineLayout layout;

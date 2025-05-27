@@ -21,12 +21,6 @@ layout(std430, set = 0, binding = 0) readonly buffer SurfaceMetaInfoBuffer
 	SurfaceInfo surfaces[];
 };
 
-layout(std430, set = 0, binding = 1) readonly buffer VertexBuffer
-{ 
-	Vertex vertices[];
-};
-
-
 layout(set = 1, binding = 0) uniform CascadeUBO
 {
 	mat4 lightSpaceTransform[NUM_CASCADES];
@@ -36,12 +30,21 @@ layout(set = 2, binding = 0) uniform SceneDataBuffer{
 	SceneData sceneData;
 };
 
+layout(buffer_reference, std430) readonly buffer VertexBuffer
+{
+	Vertex vertices[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	VertexBuffer vertexBuffer;
+};
 
 void main() 
 {
 	SurfaceInfo surface = surfaces[gl_InstanceIndex];
 
-	Vertex v = vertices[gl_VertexIndex];
+	Vertex v = vertexBuffer.vertices[gl_VertexIndex];
 	
 	vec4 position = vec4(v.position, 1.0f);
 

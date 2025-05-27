@@ -16,7 +16,6 @@ struct GBufferPass : RenderPass
 	ResourceHandle* metalRoughColorHandle = nullptr;
 	ResourceHandle* depthImageHandle = nullptr;
 	ResourceHandle* velocityImageHandle = nullptr;
-	ResourceHandle* vertexBufferHandle = nullptr;
 	ResourceHandle* indexBufferHandle = nullptr;
 	ResourceHandle* surfaceMetaInfoBufferHandle = nullptr;
 	ResourceHandle* opaqueDrawCommandBufferHandle = nullptr;

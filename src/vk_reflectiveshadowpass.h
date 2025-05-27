@@ -15,7 +15,6 @@ struct ReflectiveShadowPass : RenderPass
 	ResourceHandle* cascadeFluxHandles[NUM_CASCADES];
 	ResourceHandle* cascadeDepthHandles[NUM_CASCADES];
 	ResourceHandle* surfaceMetaInfoBufferHandle = nullptr;
-	ResourceHandle* vertexBufferHandle = nullptr;
 	ResourceHandle* indexBufferHandle = nullptr;
 	ResourceHandle* imageMetaInfoBufferHandle = nullptr;
 	ResourceHandle* opaqueDrawCommandBufferHandle = nullptr;

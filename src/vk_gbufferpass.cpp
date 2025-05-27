@@ -7,7 +7,6 @@
 
 void GBufferPass::DataSetup(LunaticEngine* engine)
 {
-    vertexBufferHandle = &engine->_vertexBuffer;
     indexBufferHandle = &engine->_indexBuffer;
     surfaceMetaInfoBufferHandle = &engine->_surfaceMetaInfoBuffer;
     opaqueDrawCommandBufferHandle = &engine->_opaqueDrawCommandBuffer;
@@ -33,26 +32,23 @@ void GBufferPass::DataSetup(LunaticEngine* engine)
 
 void GBufferPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocatorGrowable* descriptorAllocator)
 {
-    DescriptorLayoutBuilder builder;
-    builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-    builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-    builder.AddBinding(2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-    builder.AddBinding(3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
-    builder.AddBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, MAX_TEXTURES);
+    {
+        DescriptorLayoutBuilder builder;
+        builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+        builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
+        builder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, MAX_TEXTURES);
 
-    VkDescriptorBindingFlags bindingFlags[] = {
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
-    };
-    gBufferDescriptorSetLayout = builder.Build(engine->_device, VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, bindingFlags);
-    deletionQueue.PushFunction([=]() {
-        vkDestroyDescriptorSetLayout(engine->_device, gBufferDescriptorSetLayout, nullptr);
-        });
-    gBufferDescriptorSet = descriptorAllocator->Allocate(engine->_device, gBufferDescriptorSetLayout, MAX_TEXTURES);
-
+        VkDescriptorBindingFlags bindingFlags[] = {
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+            VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
+        };
+        gBufferDescriptorSetLayout = builder.Build(engine->_device, VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, bindingFlags);
+        deletionQueue.PushFunction([=]() {
+            vkDestroyDescriptorSetLayout(engine->_device, gBufferDescriptorSetLayout, nullptr);
+            });
+        gBufferDescriptorSet = descriptorAllocator->Allocate(engine->_device, gBufferDescriptorSetLayout, MAX_TEXTURES);
+    }
     {
         DescriptorLayoutBuilder builder;
         builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -82,29 +78,11 @@ void GBufferPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocatorGrow
         bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindingInfo.isImage = false;
 
-        vertexBufferHandle->bindingInfos.push_back(bindingInfo);
-    }
-    {
-        DescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 2;
-        bindingInfo.descriptorSet = gBufferDescriptorSet;
-        bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindingInfo.isImage = false;
-
         imageMetaInfoBufferHandle->bindingInfos.push_back(bindingInfo);
     }
     {
-        DescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 3;
-        bindingInfo.descriptorSet = gBufferDescriptorSet;
-        bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindingInfo.isImage = false;
-
-        lightsBufferHandle->bindingInfos.push_back(bindingInfo);
-    }
-    {
         MultiDescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 4;
+        bindingInfo.binding = 2;
         bindingInfo.descriptorSet = gBufferDescriptorSet;
         bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
@@ -130,9 +108,16 @@ void GBufferPass::PipelineSetup(LunaticEngine* engine)
         historySceneDataDescriptorSetLayout
     };
 
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(VkDeviceAddress);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
     VkPipelineLayoutCreateInfo layoutInfo = vkinit::pipeline_layout_create_info();
     layoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
     layoutInfo.pSetLayouts = descriptorSetLayouts.data();
+    layoutInfo.pPushConstantRanges = &pushConstantRange;
+    layoutInfo.pushConstantRangeCount = 1;
 
     VK_CHECK(vkCreatePipelineLayout(engine->_device, &layoutInfo, nullptr, &pipelineLayout));
 
@@ -270,6 +255,7 @@ void GBufferPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdBindIndexBuffer(cmd, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
+    vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VkDeviceAddress), &engine->_vertexBufferAddress);
 
     // Set dynamic viewport and scissor
     VkViewport viewport = {};

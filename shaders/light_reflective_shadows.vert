@@ -19,21 +19,22 @@ layout(std430, set = 0, binding = 0) readonly buffer SurfaceMetaInfoBuffer
 	SurfaceInfo surfaces[];
 };
 
-layout(std430, set = 0, binding = 1) readonly buffer VertexBuffer
-{ 
+layout(buffer_reference, std430) readonly buffer VertexBuffer
+{
 	Vertex vertices[];
 };
 
 layout(push_constant) uniform PushConstants
 {
 	mat4 lightSpaceTransform;
+	VertexBuffer vertexBuffer;
 } pushConstant;
 
 void main() 
 {
 	SurfaceInfo surface = surfaces[gl_InstanceIndex];
 
-	Vertex v = vertices[gl_VertexIndex];
+	Vertex v = pushConstant.vertexBuffer.vertices[gl_VertexIndex];
 	
 	vec4 position = vec4(v.position, 1.0f);
 	vec4 normal = vec4(v.normal, 0.0f);

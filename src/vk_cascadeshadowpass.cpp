@@ -8,7 +8,6 @@
 void CascadeShadowPass::DataSetup(LunaticEngine* engine)
 {
     surfaceMetaInfoBufferHandle = &engine->_surfaceMetaInfoBuffer;
-    vertexBufferHandle = &engine->_vertexBuffer;
     indexBufferHandle = &engine->_indexBuffer;
     opaqueDrawCommandBufferHandle = &engine->_opaqueDrawCommandBuffer;
     opaqueDrawCountBufferHandle = &engine->_opaqueDrawCountBuffer;
@@ -22,7 +21,6 @@ void CascadeShadowPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocat
 {
     DescriptorLayoutBuilder builder;
     builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-    builder.AddBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
     shadowMapDescriptorSetLayout = builder.Build(engine->_device);
     deletionQueue.PushFunction([=]() {
         vkDestroyDescriptorSetLayout(engine->_device, shadowMapDescriptorSetLayout, nullptr);
@@ -39,22 +37,13 @@ void CascadeShadowPass::DescriptorSetup(LunaticEngine* engine, DescriptorAllocat
 
         surfaceMetaInfoBufferHandle->bindingInfos.push_back(bindingInfo);
     }
-    {
-        DescriptorBindingInfo bindingInfo{};
-        bindingInfo.binding = 1;
-        bindingInfo.descriptorSet = shadowMapDescriptorSet;
-        bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindingInfo.isImage = false;
-
-        vertexBufferHandle->bindingInfos.push_back(bindingInfo);
-    }
 }
 
 void CascadeShadowPass::PipelineSetup(LunaticEngine* engine)
 {
     VkPushConstantRange pushConstant{};
     pushConstant.offset = 0;
-    pushConstant.size = sizeof(glm::mat4);
+    pushConstant.size = sizeof(CascadeConstants);
     pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     VkPipelineLayoutCreateInfo layoutInfo = vkinit::pipeline_layout_create_info();
@@ -127,12 +116,18 @@ void CascadeShadowPass::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
         GPUDebugScope scope(cmd, "Directional Shadow Pass");
 
+        CascadeConstants constants = 
+        {
+            .viewProj = engine->_dirLightViewProj[i],
+            .vertexBuffer = engine->_vertexBufferAddress
+        };
+
         vkCmdBeginRendering(cmd, &renderInfo);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         vkCmdBindIndexBuffer(cmd, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &shadowMapDescriptorSet, 0, nullptr);
-        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &engine->_dirLightViewProj[i]);
+        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(CascadeConstants), &constants);
 
         // Set dynamic viewport and scissor
         VkViewport viewport = {};

@@ -17,21 +17,24 @@ layout (location = 8) in vec4 inLightSpacePos[NUM_CASCADES];
 
 layout (location = 0) out vec4 outFragColor;
 
-layout(std430, set = 0, binding = 3) readonly buffer Lights
-{
-	Light lights[];
-};
-
-layout(set = 0, binding = 4) uniform samplerCube cubeMap;
-
-layout(set = 1, binding = 1) uniform sampler2D shadowMaps[];
-
-layout(std430, set = 0, binding = 2) readonly buffer ImageMetaInfoBuffer
+layout(std430, set = 0, binding = 1) readonly buffer ImageMetaInfoBuffer
 {   
 	ImageMetaInfo imageMetaInfo[];
 };
 
-layout(set = 0, binding = 5) uniform sampler2D textures[];
+layout(std430, set = 0, binding = 2) readonly buffer Lights
+{
+	Light lights[];
+};
+
+layout(set = 0, binding = 3) uniform samplerCube cubeMap;
+
+layout(set = 0, binding = 4) uniform sampler2D textures[];
+
+layout(set = 1, binding = 0) uniform CascadeUBO
+{
+	mat4 lightSpaceTransform[NUM_CASCADES];
+};
 
 layout(set = 1, binding = 1) uniform sampler2D dirShadowMaps[];
 

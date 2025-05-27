@@ -21,12 +21,12 @@ layout (location = 2) out vec4 outAlbedoSpec;
 layout (location = 3) out vec4 outMetalRough;
 layout (location = 4) out vec2 outVelocity;
 
-layout(std430, set = 0, binding = 2) readonly buffer ImageMetaInfoBuffer
+layout(std430, set = 0, binding = 1) readonly buffer ImageMetaInfoBuffer
 {   
 	ImageMetaInfo imageMetaInfo[];
 };
 
-layout(set = 0, binding = 4) uniform sampler2D textures[];
+layout(set = 0, binding = 2) uniform sampler2D textures[];
 
 layout(set = 1, binding = 0) uniform PrevSceneDataBuffer{   
 	SceneData prevSceneData;
