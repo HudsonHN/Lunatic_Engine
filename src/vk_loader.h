@@ -23,6 +23,7 @@ struct GeoSurface
     uint32_t indexOffset;
     uint32_t indexCount;
     uint32_t materialIndex;
+    uint32_t nameHash;
 };
 
 struct MeshAsset 
@@ -36,7 +37,7 @@ struct MeshNode : public Node
 {
     LunaticEngine* _engine;
     std::shared_ptr<MeshAsset> _mesh;
-    std::unordered_map<std::string, uint32_t> _indices;
+    std::unordered_map<uint32_t, uint32_t> _indices;
     virtual void Draw(const glm::mat4& topMatrix) override;
 };
 

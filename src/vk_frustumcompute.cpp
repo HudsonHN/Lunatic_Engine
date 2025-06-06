@@ -146,6 +146,6 @@ void FrustumCompute::Execute(LunaticEngine* engine, VkCommandBuffer cmd)
 
     vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(FrustumCullConstants), &engine->_frustumCullConstants);
 
-    // Execute the compute pipeline dispatch. We are using x=16 workgroup size so we need to divide by it
-    vkCmdDispatch(cmd, renderGraph->GetBuffer(*surfaceMetaInfoBufferHandle).usedSize / 16, 1, 1);
+    // Execute the compute pipeline dispatch. We are using x=32 workgroup size so we need to divide by it
+    vkCmdDispatch(cmd, renderGraph->GetBuffer(*surfaceMetaInfoBufferHandle).usedSize / 32, 1, 1);
 }

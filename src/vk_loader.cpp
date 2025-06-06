@@ -11,6 +11,17 @@
 VkFilter ExtractFilter(fastgltf::Filter filter);
 VkSamplerMipmapMode ExtractMipmapMode(fastgltf::Filter filter);
 
+uint32_t HashName(const std::string& name) 
+{
+    // Example: FNV-1a 32-bit
+    uint32_t hash = 2166136261u;
+    for (char c : name) {
+        hash ^= static_cast<uint8_t>(c);
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
 // DO NOT USE THIS ONE, INCOMPLETE
 std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(LunaticEngine* engine, std::filesystem::path filePath)
 {
@@ -319,6 +330,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> LoadGltf(LunaticEngine* engine, std::
             newSurface.indexOffset = (uint32_t)engine->_allIndices.size();
             newSurface.indexCount = (uint32_t)gltf.accessors[p.indicesAccessor.value()].count;
             newSurface.name = std::format("{}_{}", mesh.name, primitiveIndex);
+            newSurface.nameHash = HashName(newSurface.name);
 
             uint32_t initial_vtx = static_cast<uint32_t>(engine->_allVertices.size());
 
@@ -670,7 +682,7 @@ void MeshNode::Draw(const glm::mat4& topMatrix)
 
     for (auto& s : _mesh->surfaces)
     {
-        _engine->UpdateMesh(_indices[s.name], nodeMatrix);
+        _engine->UpdateMesh(_indices[s.nameHash], nodeMatrix);
     }
 
     // recurse down

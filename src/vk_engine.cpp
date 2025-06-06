@@ -324,7 +324,7 @@ void LunaticEngine::RunImGui()
     {
         ImGui::DragFloat("Scale", &_renderScale, 0.25f, 0.25f, 1.0f);
         ImGui::DragFloat("Exposure", &_cameraExposure, 0.1f, -4.0f, 4.0f);
-        ImGui::DragFloat("Ambient Scale", &_ambientScale, 0.1f, 0.0f, 1.0f);
+        ImGui::DragFloat("Ambient Scale", &_ambientScale, 0.05f, 0.0f, 1.0f);
     }
     if (ImGui::CollapsingHeader("Shadows"))
     {
@@ -765,7 +765,7 @@ void LunaticEngine::InitDescriptors()
         std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes =
         {
             // To hold our texture indices, vertex buffer indices, etc.
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 20000 },
             // To hold our storage images (e.g. G-buffer, compute output, etc.)
             { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100 },
             // To hold our bindless textures + samplers
@@ -1620,7 +1620,7 @@ void LunaticEngine::SetupMesh(MeshNode* meshNode)
 {
     for (GeoSurface& surface : meshNode->_mesh->surfaces)
     {
-        meshNode->_indices[surface.name] = _totalDrawCounter;
+        meshNode->_indices[surface.nameHash] = _totalDrawCounter;
 
         SurfaceMetaInfo metaInfo;
         metaInfo.surfaceIndex = _totalDrawCounter; // THIS MUST CORRESPOND WITH THE DRAW COMMAND FIRST INSTANCE

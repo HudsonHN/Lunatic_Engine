@@ -4,7 +4,7 @@
 
 #include "struct_definitions.glsl"
 
-layout (local_size_x = 16) in;
+layout (local_size_x = 32) in;
 
 layout(std430, set = 0, binding = 0) readonly buffer SurfaceMetaInfoBuffer 
 {
