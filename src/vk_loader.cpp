@@ -69,7 +69,6 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(LunaticEng
             // load indexes
             {
                 fastgltf::Accessor& indexaccessor = gltf.accessors[p.indicesAccessor.value()];
-                indices.reserve(indices.size() + indexaccessor.count);
 
                 fastgltf::iterateAccessor<std::uint32_t>(gltf, indexaccessor,
                     [&](std::uint32_t idx) {
@@ -337,7 +336,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> LoadGltf(LunaticEngine* engine, std::
             // load indexes
             {
                 fastgltf::Accessor& indexaccessor = gltf.accessors[p.indicesAccessor.value()];
-                engine->_allIndices.reserve(engine->_allIndices.size() + indexaccessor.count);
 
                 fastgltf::iterateAccessor<std::uint32_t>(gltf, indexaccessor,
                     [&](std::uint32_t idx) {

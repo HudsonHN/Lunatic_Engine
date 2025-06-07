@@ -102,7 +102,7 @@ void LunaticEngine::Init()
     InitRenderGraphData();
     InitImgui();
 
-    _ambientScale = 0.05f;
+    _ambientScale = 0.075f;
     _sceneData = {};
     _sceneData.sunlightColor = glm::vec4(1.f);
     _sceneData.sunlightColor.a = 15.0f;
@@ -324,7 +324,7 @@ void LunaticEngine::RunImGui()
     {
         ImGui::DragFloat("Scale", &_renderScale, 0.25f, 0.25f, 1.0f);
         ImGui::DragFloat("Exposure", &_cameraExposure, 0.1f, -4.0f, 4.0f);
-        ImGui::DragFloat("Ambient Scale", &_ambientScale, 0.05f, 0.0f, 1.0f);
+        ImGui::DragFloat("Ambient Scale", &_ambientScale, 0.025f, 0.0f, 1.0f);
     }
     if (ImGui::CollapsingHeader("Shadows"))
     {
