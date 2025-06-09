@@ -163,7 +163,7 @@ struct BoneTransform
     glm::vec3 scale;
     glm::mat4 ToMatrix() const
     {
-        return glm::translate(translation) * glm::toMat4(rotation) * glm::scale(scale);
+        return glm::translate(glm::mat4(1.0f), translation) * glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale);
     }
 };
 
