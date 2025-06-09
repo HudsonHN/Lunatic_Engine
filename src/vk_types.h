@@ -1,6 +1,4 @@
-﻿// vulkan_guide.h : Include file for standard system include files,
-// or project specific include files.
-#pragma once
+﻿#pragma once
 
 #include <memory>
 #include <optional>
@@ -19,11 +17,13 @@
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #define MAX_DRAWS 1024
 #define MAX_TEXTURES 2048
 #define MAX_LIGHTS 256
 #define NUM_CASCADES 4
+#define MAX_BONE_INFLUENCES 4
 
 #define VK_CHECK(x)                                                     \
     do {                                                                \
@@ -117,12 +117,14 @@ struct CascadeConstants
     VkDeviceAddress vertexBuffer;
 };
 
-struct MaterialPipeline {
+struct MaterialPipeline 
+{
     VkPipeline pipeline;
     VkPipelineLayout layout;
 };
 
-struct AllocatedImage {
+struct AllocatedImage 
+{
     VkImage image;
     VkImageView imageView;
     VmaAllocation allocation;
@@ -132,7 +134,8 @@ struct AllocatedImage {
     std::string name;
 };
 
-struct AllocatedBuffer {
+struct AllocatedBuffer 
+{
     VkBuffer buffer;
     VmaAllocation allocation;
     VmaAllocationInfo info;
@@ -140,13 +143,74 @@ struct AllocatedBuffer {
     std::string name;
 };
 
-struct Vertex {
+struct Vertex 
+{
     glm::vec3 _position;
     float _uvX;
     glm::vec3 _normal;
     float _uvY;
     glm::vec4 _color;
     glm::vec4 _tangent;
+
+    int _boneIndices[MAX_BONE_INFLUENCES];
+    int _boneWeights[MAX_BONE_INFLUENCES];
+};
+
+struct BoneTransform
+{
+    glm::quat rotation;
+    glm::vec3 translation;
+    glm::vec3 scale;
+    glm::mat4 ToMatrix() const
+    {
+        return glm::translate(translation) * glm::toMat4(rotation) * glm::scale(scale);
+    }
+};
+
+/** 
+    Every vertex is in model space.
+    To apply animations, which are in joint space, we need to convert the vertex to joint space.
+    We need to traverse down the skeletal hierarchy to compute the joint-to-model space for each bone.
+    The inverse of each of these matrices allows us to convert from model-to-joint space.
+    Each animation matrix when applied converts the vertex back to model space anyways,
+    so all we need is to convert vertex to joint space, apply animation, 
+    then the vertex is back in model space in the updated anim position.
+**/
+struct Skeleton
+{
+    struct Bone
+    {
+        BoneTransform bindPose;
+        std::string name;
+        int parentIndex;
+    };
+public:
+    size_t GetNumBones() const { return bones.size(); }
+    const Bone& GetBone(size_t index) const { return bones[index]; }
+    const std::vector<Bone>& GetBones() const { return bones; }
+    const std::vector<glm::mat4>& GetGlobalInvBindPoses() const { return invMatrices; }
+private:
+    std::vector<Bone> bones;
+    std::vector<glm::mat4> invMatrices;
+
+    void ComputeGlobalInvBindPose()
+    {
+        for (size_t i = 0; i < bones.size(); i++)
+        {
+            if (bones[i].parentIndex == -1)
+            {
+                invMatrices.push_back(bones[i].bindPose.ToMatrix());
+                continue;
+            }
+
+            int parentIndex = bones[i].parentIndex;
+            invMatrices.push_back(bones[i].bindPose.ToMatrix() * invMatrices[parentIndex]);
+        }
+        for (size_t i = 0; i < invMatrices.size(); i++)
+        {
+            invMatrices[i] = glm::inverse(invMatrices[i]);
+        }
+    };
 };
 
 struct GPUSceneData {
@@ -165,7 +229,8 @@ struct GPUSceneData {
     uint32_t frameIndex;
 };
 
-enum class LightType : uint32_t {
+enum class LightType : uint32_t 
+{
     Point,
     Directional,
     Cone,
@@ -186,7 +251,8 @@ struct Light
 };
 
 // base class for a renderable dynamic object
-class IRenderable {
+class IRenderable 
+{
 
     virtual void Draw(const glm::mat4& topMatrix) = 0;
 };
@@ -194,7 +260,8 @@ class IRenderable {
 // implementation of a drawable scene node.
 // the scene node can hold children and will also keep a transform to propagate
 // to them
-struct Node : public IRenderable {
+struct Node : public IRenderable 
+{
 
     // parent pointer must be a weak pointer to avoid circular dependencies
     std::weak_ptr<Node> _parent;

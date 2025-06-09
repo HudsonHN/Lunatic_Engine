@@ -1,4 +1,5 @@
-const int NUM_CASCADES = 4;
+#define NUM_CASCADES 4
+#define MAX_BONE_INFLUENCES 4
 
 struct MaterialConstants 
 {
@@ -77,6 +78,9 @@ struct Vertex
 	float uv_y;
 	vec4 color;
 	vec4 tangent;
+
+	int boneIndices[MAX_BONE_INFLUENCES];
+	float boneWeights[MAX_BONE_INFLUENCES];
 };
 
 struct VkDrawIndexedIndirectCommand {

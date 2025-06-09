@@ -311,6 +311,12 @@ std::optional<std::shared_ptr<LoadedGLTF>> LoadGltf(LunaticEngine* engine, std::
         engine->WriteMaterial(engine->_device, materialResources, file._descriptorPool);
     }
 
+    // Load all animations
+    /*for (fastgltf::Animation& anim : gltf.animations)
+    {
+
+    }*/
+
     for (fastgltf::Mesh& mesh : gltf.meshes)
     {
         std::shared_ptr<MeshAsset> newmesh = std::make_shared<MeshAsset>();
