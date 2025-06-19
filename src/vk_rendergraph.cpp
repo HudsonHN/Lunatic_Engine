@@ -114,11 +114,7 @@ void RenderGraph::AddSceneDataDependantPass(RenderPass* pass)
 
 void RenderGraph::Setup()
 {
-	if (!bindlessAllocator || !globalAllocator)
-	{
-		fmt::println("Cannot initialize render graph because allocators are not assigned!");
-		return;
-	}
+	assert(bindlessAllocator && globalAllocator && "Cannot initialize render graph because allocators are not assigned!");
 
 	DescriptorLayoutBuilder builder;
 	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT);

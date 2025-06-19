@@ -247,7 +247,7 @@ void main()
 
 		if (pushConstants.bDrawReflectiveShadowMaps == 1)
 		{
-			finalColor += texture(indirectColor, inUV * sceneData.renderScale).rgb;
+			finalColor += texture(indirectColor, inUV * sceneData.renderScale).rgb * occlusion;
 		}
 	}
 	vec3 ambient = albedo * sceneData.ambientColor.xyz * pushConstants.ambientScale;

@@ -65,7 +65,8 @@ struct ImageMetaInfo
 	MaterialConstants constants;
 };
 
-struct SurfaceMetaInfo
+// Needs to be aligned to 16 bytes as with any struct stored in an array in GPU
+struct alignas(16) SurfaceMetaInfo
 {
 	glm::mat4 worldTransform;
 	Bounds bounds;
@@ -73,6 +74,9 @@ struct SurfaceMetaInfo
 	uint32_t materialIndex;
 	uint32_t drawIndex; // To index into the opaque and transparent draw arrays
 	uint32_t bIsTransparent;
+	uint32_t bIsSkinned;
+	uint32_t boneOffset; // Byte offset into the global bone transform buffer
+	uint32_t boneCount; // Number of joints the surface uses
 };
 
 struct SSAOConstants
@@ -321,6 +325,8 @@ public:
 	std::vector<std::shared_ptr<GLTFMaterial>> _allMaterials;
 	std::vector<ImageMetaInfo> _allImageMetaInfo;
 	std::vector<Light> _allLights;
+	std::vector<glm::mat4> _allFinalBoneTransforms;
+	std::vector<glm::mat4> _allInvBindPoseTransforms;
 
 	MultiImageHandle _allMaterialImages;
 
@@ -339,6 +345,8 @@ public:
 	ResourceHandle _indirLightViewProjBuffer;
 	ResourceHandle _inverseIndirLightViewProjBuffer;
 	ResourceHandle _kernelBuffer;
+	ResourceHandle _boneTransformBuffer;
+	ResourceHandle _invBindPoseTransformBuffer;
 
 	RenderGraph _renderGraph;
 

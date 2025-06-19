@@ -30,6 +30,11 @@ layout(set = 1, binding = 1) uniform CurrSceneDataBuffer
 	SceneData currSceneData;
 };
 
+layout(set = 2, binding = 0) readonly buffer BoneTransformBuffer
+{   
+	mat4 boneTransforms[];
+};
+
 layout(buffer_reference, std430) readonly buffer VertexBuffer
 {
 	Vertex vertices[];
@@ -48,12 +53,15 @@ void main()
 	
 	vec4 position = vec4(v.position, 1.0f);
 
+	mat4 skinTransform = mat4(0.0f);
 	for (int i = 0; i < MAX_BONE_INFLUENCES; i++)
 	{
-		//position += boneWeights[i] * ()
+		uint boneIndex = v.boneIndices[i];
+		// Bone transforms are all in a global buffer, accessed by their byte offset (surface.boneOffset) and boneIndex (v.boneIndices[i]) from 0 - 3
+		skinTransform += v.boneWeights[i] * boneTransforms[i + surface.boneOffset + boneIndex];
 	}
 
-	vec4 worldPosition = surface.worldTransform * position;
+	vec4 worldPosition = surface.worldTransform * skinTransform * position;
 
 	outWorldPos = worldPosition.xyz;
 	outMaterialIndex = surface.materialIndex;

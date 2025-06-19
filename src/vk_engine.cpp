@@ -1196,7 +1196,7 @@ void LunaticEngine::InitAmbientOcclusionData()
     std::default_random_engine generator;
 
     _ssaoConstants.bias = 0.05f;
-    _ssaoConstants.radius = 1.0f;
+    _ssaoConstants.radius = 0.65f;
     _ssaoConstants.kernelSize = 16;
     _ssaoConstants.power = 3.0f;
     _ssaoBlurAmount = 2.0f;

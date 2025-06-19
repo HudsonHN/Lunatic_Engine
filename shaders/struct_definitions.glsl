@@ -68,6 +68,9 @@ struct SurfaceInfo
 	uint materialIndex;
 	uint drawIndex;
 	uint bIsTransparent;
+	uint bIsSkinned;
+	uint boneOffset;
+	uint boneCount;
 };
 
 struct Vertex
